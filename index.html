@@ -142,19 +142,38 @@
     }
     .actions .btn-secondary:hover:not(:disabled) { background: #eff6ff; }
 
-    /* ---------- Check print overlay ---------- */
-    /* PH check stock: ~175mm x 75mm. Tweak --check-* offsets to match your bank. */
+    /* ---------- Check print overlay ----------
+       Default tuned for Security Bank stock (~175mm x 75mm landscape).
+       The check is printed PORTRAIT so it feeds short-edge first into the
+       printer (LEFT edge of the check enters first). The overlay below is
+       still authored in LANDSCAPE coordinates and rotated for print.
+
+       Tweak --check-* offsets to align with your specific check stock.
+       --check-page-w / --check-page-h must match the actual paper size you
+       set in the printer driver. */
     :root {
       --check-w: 175mm;
       --check-h: 75mm;
-      --check-date-top: 8mm;
-      --check-date-right: 12mm;
-      --check-payee-top: 22mm;
-      --check-payee-left: 32mm;
-      --check-words-top: 32mm;
-      --check-words-left: 6mm;
-      --check-amount-top: 22mm;
-      --check-amount-right: 8mm;
+      --check-page-w: 75mm;
+      --check-page-h: 175mm;
+
+      /* DATE: 8 boxed cells M M D D Y Y Y Y at top right */
+      --check-date-top: 17mm;
+      --check-date-right: 10mm;
+      --check-date-spacing: 2.6mm;
+
+      /* PAY TO THE ORDER OF: line after the label, mid-left */
+      --check-payee-top: 30mm;
+      --check-payee-left: 33mm;
+
+      /* PESOS line: amount in words below the payee */
+      --check-words-top: 38mm;
+      --check-words-left: 18mm;
+      --check-words-width: 95mm;
+
+      /* Amount in figures: right of payee, after the peso symbol */
+      --check-amount-top: 30mm;
+      --check-amount-right: 6mm;
     }
 
     .print-check {
@@ -170,16 +189,57 @@
       white-space: nowrap;
       font-size: 12pt;
     }
-    .print-check .pc-date  { top: var(--check-date-top);  right: var(--check-date-right); letter-spacing: 2px; }
-    .print-check .pc-payee { top: var(--check-payee-top); left: var(--check-payee-left); }
-    .print-check .pc-words { top: var(--check-words-top); left: var(--check-words-left); right: 50mm; white-space: normal; }
-    .print-check .pc-amt   { top: var(--check-amount-top); right: var(--check-amount-right); font-weight: bold; }
+    .print-check .pc-date {
+      top: var(--check-date-top);
+      right: var(--check-date-right);
+      letter-spacing: var(--check-date-spacing);
+      font-weight: bold;
+      font-size: 13pt;
+    }
+    .print-check .pc-payee {
+      top: var(--check-payee-top);
+      left: var(--check-payee-left);
+      font-size: 12pt;
+    }
+    .print-check .pc-words {
+      top: var(--check-words-top);
+      left: var(--check-words-left);
+      width: var(--check-words-width);
+      white-space: normal;
+      font-size: 10pt;
+      line-height: 1.2;
+    }
+    .print-check .pc-amt {
+      top: var(--check-amount-top);
+      right: var(--check-amount-right);
+      font-weight: bold;
+      font-size: 13pt;
+    }
 
     @media print {
-      @page { size: 175mm 75mm; margin: 0; }
-      body { background: white; padding: 0; margin: 0; }
+      @page {
+        size: var(--check-page-w) var(--check-page-h);
+        margin: 0;
+      }
+      html, body {
+        width: var(--check-page-w);
+        height: var(--check-page-h);
+        background: white;
+        padding: 0;
+        margin: 0;
+        overflow: hidden;
+      }
       .container { display: none !important; }
-      .print-check { display: block !important; }
+      .print-check {
+        display: block !important;
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform-origin: 0 0;
+        /* Rotate landscape overlay 90° CW and shift onto the portrait page,
+           so the LEFT edge of the check maps to the TOP of the page. */
+        transform: translate(var(--check-page-w), 0) rotate(90deg);
+      }
     }
   </style>
   <script src="config.js"></script>
@@ -338,9 +398,10 @@
     }
 
     function formatCheckDate(iso) {
+      // MMDDYYYY — letter-spacing positions each digit in its own box.
       const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
       if (!m) return iso;
-      return `${m[2]}  ${m[3]}  ${m[1]}`;
+      return `${m[2]}${m[3]}${m[1]}`;
     }
 
     const ONES = ['','ONE','TWO','THREE','FOUR','FIVE','SIX','SEVEN','EIGHT','NINE',
