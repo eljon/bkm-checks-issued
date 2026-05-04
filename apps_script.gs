@@ -73,8 +73,6 @@ function saveCheck_(p) {
   checks.getRange(row, 1, 1, CHECK_HEADERS.length).setValues([[
     new Date(), supplier, orderMonth, checkDate, checkNumber, bank, amount, notes
   ]]);
-  checks.getRange(row, 4).setNumberFormat('yyyy-mm-dd');
-  checks.getRange(row, 7).setNumberFormat('#,##0.00');
 
   return { ok: true };
 }
@@ -121,8 +119,6 @@ function updateCheck_(p) {
   checks.getRange(rowIndex, 1, 1, CHECK_HEADERS.length).setValues([[
     originalTimestamp || new Date(), supplier, orderMonth, checkDate, checkNumber, bank, amount, notes
   ]]);
-  checks.getRange(rowIndex, 4).setNumberFormat('yyyy-mm-dd');
-  checks.getRange(rowIndex, 7).setNumberFormat('#,##0.00');
 
   return { ok: true };
 }
@@ -192,9 +188,14 @@ function formatDate_(v) {
 // existing spreadsheets. Each version runs the migration once per Sheet
 // (tracked in document properties) and then short-circuits on every
 // subsequent call so doPost stays fast.
-const SCHEMA_VERSION = 'v2';
+const SCHEMA_VERSION = 'v3';
+const CACHE_TTL_SEC = 600; // 10 minutes
 
 function ensureSheets_() {
+  // Hot path: most requests just hit the cache and skip the Sheets API.
+  const cache = CacheService.getScriptCache();
+  if (cache.get('schema_ok') === SCHEMA_VERSION) return;
+
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
   let checks = ss.getSheetByName(SHEET_CHECKS);
@@ -202,8 +203,7 @@ function ensureSheets_() {
     checks = ss.insertSheet(SHEET_CHECKS);
     checks.getRange(1, 1, 1, CHECK_HEADERS.length).setValues([CHECK_HEADERS]).setFontWeight('bold');
     checks.setFrozenRows(1);
-    // Order Month is stored as text — Sheets otherwise parses "YYYY-MM" as a date.
-    checks.getRange('C:C').setNumberFormat('@');
+    applyChecksColumnFormats_(checks);
   }
   runMigrationsIfNeeded_(checks);
 
@@ -218,12 +218,22 @@ function ensureSheets_() {
     b.getRange(1, 1).setValue('Bank').setFontWeight('bold');
     b.setFrozenRows(1);
   }
+
+  cache.put('schema_ok', SCHEMA_VERSION, CACHE_TTL_SEC);
+}
+
+function applyChecksColumnFormats_(checks) {
+  // Column-level formats so saveCheck_/updateCheck_ never need per-row formatting.
+  checks.getRange('C:C').setNumberFormat('@');           // Order Month as text
+  checks.getRange('D:D').setNumberFormat('yyyy-mm-dd');  // Check Date
+  checks.getRange('G:G').setNumberFormat('#,##0.00');    // Amount
 }
 
 function runMigrationsIfNeeded_(checks) {
   const props = PropertiesService.getDocumentProperties();
   if (props.getProperty('schema_version') === SCHEMA_VERSION) return;
   migrateChecksHeader_(checks);
+  applyChecksColumnFormats_(checks);
   props.setProperty('schema_version', SCHEMA_VERSION);
 }
 
@@ -261,31 +271,43 @@ function migrateChecksHeader_(checks) {
 }
 
 function getColumn_(sheetName) {
+  const cacheKey = 'col_' + sheetName;
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get(cacheKey);
+  if (cached !== null) return JSON.parse(cached);
+
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
   const lastRow = sheet.getLastRow();
-  if (lastRow < 2) return [];
-  const values = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
-  const seen = new Set();
   const out = [];
-  values.forEach(r => {
-    const v = String(r[0] || '').trim();
-    if (!v) return;
-    const k = v.toLowerCase();
-    if (seen.has(k)) return;
-    seen.add(k);
-    out.push(v);
-  });
-  out.sort((a, b) => a.localeCompare(b));
+  if (lastRow >= 2) {
+    const values = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    const seen = new Set();
+    values.forEach(r => {
+      const v = String(r[0] || '').trim();
+      if (!v) return;
+      const k = v.toLowerCase();
+      if (seen.has(k)) return;
+      seen.add(k);
+      out.push(v);
+    });
+    out.sort((a, b) => a.localeCompare(b));
+  }
+  cache.put(cacheKey, JSON.stringify(out), CACHE_TTL_SEC);
   return out;
 }
 
 function addIfNew_(sheetName, value) {
   const v = String(value || '').trim();
   if (!v) return;
+  const existing = getColumn_(sheetName);
+  if (existing.some(s => s.toLowerCase() === v.toLowerCase())) return;
+
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
-  const existing = getColumn_(sheetName).map(s => s.toLowerCase());
-  if (existing.includes(v.toLowerCase())) return;
   sheet.appendRow([v]);
+
+  // Keep the cache warm so the next save doesn't re-read the column.
+  const updated = existing.concat(v).sort((a, b) => a.localeCompare(b));
+  CacheService.getScriptCache().put('col_' + sheetName, JSON.stringify(updated), CACHE_TTL_SEC);
 }
 
 function json(obj) {
