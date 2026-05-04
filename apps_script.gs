@@ -160,13 +160,22 @@ function rowToCheck_(row, rowIndex) {
     rowIndex,
     timestamp: formatDate_(row[0]),
     supplier: String(row[1] || ''),
-    orderMonth: String(row[2] || ''),
+    orderMonth: formatYearMonth_(row[2]),
     checkDate: formatDate_(row[3]),
     checkNumber: String(row[4] || ''),
     bank: String(row[5] || ''),
     amount: Number(row[6]) || 0,
     notes: String(row[7] || '')
   };
+}
+
+function formatYearMonth_(v) {
+  if (v instanceof Date) {
+    const y = v.getFullYear();
+    const m = String(v.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}`;
+  }
+  return String(v || '').trim();
 }
 
 function formatDate_(v) {
@@ -190,6 +199,9 @@ function ensureSheets_() {
   } else {
     migrateChecksHeader_(checks);
   }
+
+  // Order Month is stored as text — Sheets otherwise parses "YYYY-MM" as a date.
+  checks.getRange('C:C').setNumberFormat('@');
 
   if (!ss.getSheetByName(SHEET_SUPPLIERS)) {
     const s = ss.insertSheet(SHEET_SUPPLIERS);
@@ -216,6 +228,25 @@ function migrateChecksHeader_(checks) {
   checks.getRange(1, 1, 1, CHECK_HEADERS.length)
     .setValues([CHECK_HEADERS])
     .setFontWeight('bold');
+
+  // Rewrite any Order Month cells that Sheets auto-parsed into Date values
+  // back as plain "YYYY-MM" text so equality filtering works.
+  const lastRow = checks.getLastRow();
+  if (lastRow >= 2) {
+    const range = checks.getRange(2, 3, lastRow - 1, 1);
+    const values = range.getValues();
+    let dirty = false;
+    for (let i = 0; i < values.length; i++) {
+      if (values[i][0] instanceof Date) {
+        values[i][0] = formatYearMonth_(values[i][0]);
+        dirty = true;
+      }
+    }
+    if (dirty) {
+      range.setNumberFormat('@');
+      range.setValues(values);
+    }
+  }
 }
 
 function getColumn_(sheetName) {
