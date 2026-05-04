@@ -1,51 +1,96 @@
 # BKM Checks Issued
 
-A small web app for logging Philippine bank checks issued to suppliers. Form
-data is written to a Google Sheet, with separate tabs for the running check log
-and for searchable supplier and bank lists.
+Static web app for logging Philippine bank checks. Sign in with Google,
+fill out the form, and the entry is appended directly to a Google Sheet
+via the Sheets API. Supplier and bank inputs autocomplete from their own
+tabs in the same sheet. A Print button lays the values out on a 175mm ×
+75mm page in standard Philippine check positions.
 
-## Form fields
-
-- Supplier (searchable, autocompletes from the `Suppliers` tab; new entries are added automatically)
-- Check Date
-- Check Number
-- Bank (searchable, autocompletes from the `Banks` tab; new entries are added automatically)
-- Amount (Philippine Peso)
-- Notes (optional)
-
-## Printing
-
-The **Print** button opens the browser print dialog with the form values laid
-out on a 175mm × 75mm page in standard Philippine check positions (date,
-payee in caps, amount in words with `XX/100 ONLY`, and amount in figures
-flanked by `**`). Print onto pre-printed check stock.
-
-If your bank's check uses different field positions or paper size, edit the
-`@page` size and the `--check-*` CSS variables at the top of `Index.html`.
+No backend server, no Apps Script — push the files to any static host
+(GitHub Pages, Netlify, Vercel, your own server) and that's the whole
+deploy. Re-deploy = `git push`.
 
 ## Files
 
-- `Code.gs` — Google Apps Script backend (sheet I/O, validation)
-- `Index.html` — Form UI served by the Apps Script web app
-- `appsscript.json` — Apps Script project manifest
+- `index.html` — the entire app
+- `config.js` — your Sheet ID and OAuth Client ID
+- `README.md` — this file
 
-## Setup
+## One-time setup
 
-1. Create a new Google Sheet. This is where checks will be saved.
-2. In that Sheet: **Extensions → Apps Script**.
-3. In the Apps Script editor:
-   - Replace the contents of `Code.gs` with the file from this repo.
-   - Click the **+** next to "Files", choose **HTML**, name it `Index`, and
-     paste the contents of `Index.html`.
-   - Open project settings (gear icon) and tick **"Show appsscript.json
-     manifest file"**, then replace its contents with `appsscript.json` from
-     this repo.
-4. Click **Deploy → New deployment → Web app**:
-   - Execute as: **Me**
-   - Who has access: **Only myself** (or **Anyone with Google account** if you
-     want to share)
-5. Authorize when prompted. Open the deployment URL — the `Checks`,
-   `Suppliers`, and `Banks` tabs are created on first load.
+### 1. Create the Google Sheet
 
-When you push code changes, run **Deploy → Manage deployments → edit → New
-version** to publish them.
+Create a new Google Sheet. Copy the ID out of its URL:
+
+```
+https://docs.google.com/spreadsheets/d/<THIS_PART_IS_THE_ID>/edit
+```
+
+The app will create the `Checks`, `Suppliers`, and `Banks` tabs on first
+use.
+
+### 2. Create an OAuth Client ID
+
+1. Go to <https://console.cloud.google.com/>, create (or pick) a project.
+2. **APIs & Services → Library** → enable **Google Sheets API**.
+3. **APIs & Services → OAuth consent screen** → set up an external app.
+   Add yourself as a test user. Add the scope
+   `https://www.googleapis.com/auth/spreadsheets`.
+4. **APIs & Services → Credentials → Create credentials → OAuth client ID**:
+   - Application type: **Web application**
+   - **Authorized JavaScript origins**: every origin you'll serve the app
+     from. Examples:
+     - `http://localhost:8000` for local testing
+     - `https://<your-username>.github.io` for GitHub Pages
+     - `https://your-domain.com` for a custom host
+5. Copy the generated **Client ID**.
+
+### 3. Configure the app
+
+Edit `config.js`:
+
+```js
+window.APP_CONFIG = {
+  spreadsheetId: 'your-sheet-id',
+  oauthClientId: 'your-client-id.apps.googleusercontent.com'
+};
+```
+
+Commit and push.
+
+## Running it
+
+### Local
+
+```sh
+python3 -m http.server 8000
+# open http://localhost:8000
+```
+
+(The Google sign-in flow needs an `http://` or `https://` origin —
+opening `index.html` via `file://` won't work.)
+
+### GitHub Pages
+
+Repo **Settings → Pages → Build from branch** → pick this branch,
+`/ (root)` folder. Wait for the deployment, then visit the published URL.
+Make sure that URL is added as an Authorized JavaScript origin in step 2.
+
+## How it works
+
+- Sign-in uses **Google Identity Services** (token client) — you grant
+  the app permission to access spreadsheets, the browser receives a
+  short-lived access token, and the token is cached in `sessionStorage`
+  for the tab's lifetime.
+- All reads/writes go straight to
+  `https://sheets.googleapis.com/v4/spreadsheets/<id>/...`. There is no
+  intermediate server.
+- On first save, the three tabs are created if missing and headers are
+  written.
+
+## Adjusting the check print layout
+
+The `:root` block at the top of `index.html` exposes all check positions
+as CSS variables (`--check-w`, `--check-h`, `--check-date-top`,
+`--check-payee-left`, etc.). Tweak them once to match your bank's
+pre-printed check, then `git push`.

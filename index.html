@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <base target="_top">
   <meta charset="utf-8">
   <title>BKM Checks Issued</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     :root {
       --bg: #f5f6f8;
@@ -28,15 +28,9 @@
       padding: 16px;
     }
 
-    .container {
-      max-width: 520px;
-      margin: 0 auto;
-    }
+    .container { max-width: 520px; margin: 0 auto; }
 
-    h1 {
-      font-size: 20px;
-      margin: 8px 0 16px;
-    }
+    h1 { font-size: 20px; margin: 8px 0 16px; }
 
     .card {
       background: var(--card);
@@ -45,23 +39,15 @@
       box-shadow: 0 1px 3px rgba(0,0,0,0.08);
     }
 
-    .field {
-      margin-bottom: 14px;
-      position: relative;
-    }
+    .field { margin-bottom: 14px; position: relative; }
 
     label {
       display: block;
       font-size: 13px;
       font-weight: 600;
       margin-bottom: 6px;
-      color: var(--text);
     }
-
-    label .opt {
-      color: var(--muted);
-      font-weight: 400;
-    }
+    label .opt { color: var(--muted); font-weight: 400; }
 
     input, textarea {
       width: 100%;
@@ -73,23 +59,14 @@
       color: var(--text);
       font-family: inherit;
     }
-
     input:focus, textarea:focus {
       outline: none;
       border-color: var(--primary);
       box-shadow: 0 0 0 3px var(--focus);
     }
+    textarea { min-height: 70px; resize: vertical; }
 
-    textarea {
-      min-height: 70px;
-      resize: vertical;
-    }
-
-    .row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
     button {
       width: 100%;
@@ -103,7 +80,6 @@
       cursor: pointer;
       margin-top: 6px;
     }
-
     button:hover:not(:disabled) { background: var(--primary-hover); }
     button:disabled { opacity: 0.6; cursor: not-allowed; }
 
@@ -120,9 +96,7 @@
 
     .suggestions {
       position: absolute;
-      top: 100%;
-      left: 0;
-      right: 0;
+      top: 100%; left: 0; right: 0;
       background: white;
       border: 1px solid var(--border);
       border-radius: 6px;
@@ -134,15 +108,8 @@
       display: none;
     }
     .suggestions.show { display: block; }
-
-    .suggestion {
-      padding: 10px 12px;
-      cursor: pointer;
-      font-size: 15px;
-    }
-    .suggestion:hover, .suggestion.active {
-      background: #eff6ff;
-    }
+    .suggestion { padding: 10px 12px; cursor: pointer; font-size: 15px; }
+    .suggestion:hover, .suggestion.active { background: #eff6ff; }
     .suggestion .new-tag {
       display: inline-block;
       margin-left: 6px;
@@ -153,27 +120,14 @@
       border-radius: 4px;
     }
 
-    .amount-wrap {
-      position: relative;
-    }
+    .amount-wrap { position: relative; }
     .amount-wrap .currency {
-      position: absolute;
-      left: 12px;
-      top: 50%;
+      position: absolute; left: 12px; top: 50%;
       transform: translateY(-50%);
-      color: var(--muted);
-      font-size: 16px;
+      color: var(--muted); font-size: 16px;
       pointer-events: none;
     }
-    .amount-wrap input {
-      padding-left: 36px;
-    }
-
-    .hint {
-      font-size: 12px;
-      color: var(--muted);
-      margin-top: 4px;
-    }
+    .amount-wrap input { padding-left: 36px; }
 
     .actions {
       display: grid;
@@ -186,13 +140,28 @@
       color: var(--primary);
       border: 1px solid var(--primary);
     }
-    .actions .btn-secondary:hover:not(:disabled) {
-      background: #eff6ff;
+    .actions .btn-secondary:hover:not(:disabled) { background: #eff6ff; }
+
+    .header-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 8px 0 16px;
     }
+    .who { font-size: 13px; color: var(--muted); }
+    .link-btn {
+      background: none; border: none; padding: 0;
+      color: var(--primary); cursor: pointer;
+      font-size: 13px; font-weight: 500; width: auto;
+      margin: 0;
+    }
+    .link-btn:hover { text-decoration: underline; background: none; }
+
+    .signin-card { text-align: center; }
+    .signin-card p { color: var(--muted); margin: 0 0 16px; font-size: 14px; }
 
     /* ---------- Check print overlay ---------- */
-    /* Standard PH check stock: ~175mm x 75mm. Adjust the @page size and the
-       --check-* offsets below to match your bank's pre-printed check. */
+    /* PH check stock: ~175mm x 75mm. Tweak --check-* offsets to match your bank. */
     :root {
       --check-w: 175mm;
       --check-h: 75mm;
@@ -230,12 +199,30 @@
       .container { display: none !important; }
       .print-check { display: block !important; }
     }
+
+    .hidden { display: none !important; }
   </style>
+  <script src="config.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
   <div class="container">
-    <h1>Record Check Issued</h1>
-    <div class="card">
+    <div class="header-bar">
+      <h1 style="margin:0;">Record Check Issued</h1>
+      <div id="userInfo" class="who hidden">
+        <span id="userEmail"></span>
+        &nbsp;·&nbsp;
+        <button type="button" class="link-btn" id="signOutBtn">Sign out</button>
+      </div>
+    </div>
+
+    <div class="card signin-card" id="signinCard">
+      <p>Sign in with the Google account that owns the spreadsheet.</p>
+      <button type="button" id="signInBtn">Sign in with Google</button>
+      <div class="toast" id="signinToast"></div>
+    </div>
+
+    <div class="card hidden" id="formCard">
       <form id="checkForm" autocomplete="off">
         <div class="field">
           <label for="supplier">Supplier</label>
@@ -263,7 +250,7 @@
         <div class="field">
           <label for="amount">Amount</label>
           <div class="amount-wrap">
-            <span class="currency">₱</span>
+            <span class="currency">&#8369;</span>
             <input type="text" id="amount" name="amount" inputmode="decimal" placeholder="0.00" required>
           </div>
         </div>
@@ -290,19 +277,258 @@
   </div>
 
   <script>
+    const SHEET_CHECKS = 'Checks';
+    const SHEET_SUPPLIERS = 'Suppliers';
+    const SHEET_BANKS = 'Banks';
+    const CHECK_HEADERS = ['Timestamp', 'Supplier', 'Check Date', 'Check Number', 'Bank', 'Amount', 'Notes'];
+    const SCOPE = 'https://www.googleapis.com/auth/spreadsheets';
+
     const state = {
       suppliers: [],
-      banks: []
+      banks: [],
+      token: null,
+      tokenExpiresAt: 0,
+      tokenClient: null,
+      ensuredSheets: false
     };
 
     document.addEventListener('DOMContentLoaded', () => {
-      loadLists();
+      if (!window.APP_CONFIG || !APP_CONFIG.spreadsheetId || APP_CONFIG.spreadsheetId.startsWith('PUT_')) {
+        showSigninToast('Edit config.js with your spreadsheetId and oauthClientId before using the app.', 'error');
+        document.getElementById('signInBtn').disabled = true;
+        return;
+      }
+
       attachAutocomplete('supplier', 'supplierSuggestions', () => state.suppliers);
       attachAutocomplete('bank', 'bankSuggestions', () => state.banks);
       attachAmountFormatter();
       document.getElementById('checkForm').addEventListener('submit', onSubmit);
       document.getElementById('printBtn').addEventListener('click', onPrint);
+      document.getElementById('signInBtn').addEventListener('click', signIn);
+      document.getElementById('signOutBtn').addEventListener('click', signOut);
+
+      waitForGsi().then(initTokenClient).catch(err => {
+        showSigninToast('Failed to load Google sign-in: ' + err.message, 'error');
+      });
     });
+
+    function waitForGsi() {
+      return new Promise((resolve, reject) => {
+        const start = Date.now();
+        (function check() {
+          if (window.google && google.accounts && google.accounts.oauth2) return resolve();
+          if (Date.now() - start > 8000) return reject(new Error('timed out'));
+          setTimeout(check, 100);
+        })();
+      });
+    }
+
+    function initTokenClient() {
+      state.tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: APP_CONFIG.oauthClientId,
+        scope: SCOPE,
+        callback: handleTokenResponse
+      });
+
+      const cached = sessionStorage.getItem('bkm_token');
+      if (cached) {
+        try {
+          const t = JSON.parse(cached);
+          if (t.expires_at > Date.now() + 30000) {
+            state.token = t.access_token;
+            state.tokenExpiresAt = t.expires_at;
+            state.userEmail = t.email || '';
+            onSignedIn();
+            return;
+          }
+        } catch (_) {}
+      }
+    }
+
+    function signIn() {
+      if (!state.tokenClient) return;
+      state.tokenClient.requestAccessToken({ prompt: 'consent' });
+    }
+
+    function signOut() {
+      if (state.token) {
+        google.accounts.oauth2.revoke(state.token, () => {});
+      }
+      state.token = null;
+      state.tokenExpiresAt = 0;
+      sessionStorage.removeItem('bkm_token');
+      document.getElementById('formCard').classList.add('hidden');
+      document.getElementById('userInfo').classList.add('hidden');
+      document.getElementById('signinCard').classList.remove('hidden');
+    }
+
+    async function handleTokenResponse(resp) {
+      if (resp.error) {
+        showSigninToast(resp.error_description || resp.error, 'error');
+        return;
+      }
+      state.token = resp.access_token;
+      state.tokenExpiresAt = Date.now() + (Number(resp.expires_in) || 3600) * 1000;
+
+      try {
+        const profile = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: 'Bearer ' + state.token }
+        }).then(r => r.ok ? r.json() : {});
+        state.userEmail = profile.email || '';
+      } catch (_) { state.userEmail = ''; }
+
+      sessionStorage.setItem('bkm_token', JSON.stringify({
+        access_token: state.token,
+        expires_at: state.tokenExpiresAt,
+        email: state.userEmail
+      }));
+
+      onSignedIn();
+    }
+
+    async function ensureFreshToken() {
+      if (state.token && Date.now() < state.tokenExpiresAt - 30000) return;
+      return new Promise((resolve, reject) => {
+        const cb = state.tokenClient.callback;
+        state.tokenClient.callback = (resp) => {
+          state.tokenClient.callback = cb;
+          if (resp.error) { reject(new Error(resp.error)); return; }
+          handleTokenResponse(resp).then(resolve, reject);
+        };
+        state.tokenClient.requestAccessToken({ prompt: '' });
+      });
+    }
+
+    async function onSignedIn() {
+      document.getElementById('signinCard').classList.add('hidden');
+      document.getElementById('formCard').classList.remove('hidden');
+      document.getElementById('userInfo').classList.remove('hidden');
+      document.getElementById('userEmail').textContent = state.userEmail || 'Signed in';
+      try {
+        await ensureSheetsExist();
+        await loadLists();
+      } catch (err) {
+        showToast('Setup failed: ' + err.message, 'error');
+      }
+    }
+
+    // ---------- Sheets API helpers ----------
+
+    async function sheetsFetch(path, init) {
+      await ensureFreshToken();
+      const url = 'https://sheets.googleapis.com/v4/spreadsheets/' + APP_CONFIG.spreadsheetId + path;
+      const opts = init || {};
+      opts.headers = Object.assign({}, opts.headers || {}, {
+        Authorization: 'Bearer ' + state.token,
+        'Content-Type': 'application/json'
+      });
+      const resp = await fetch(url, opts);
+      if (!resp.ok) {
+        let detail = '';
+        try { detail = (await resp.json()).error.message; } catch (_) {}
+        throw new Error(detail || ('HTTP ' + resp.status));
+      }
+      return resp.json();
+    }
+
+    async function ensureSheetsExist() {
+      if (state.ensuredSheets) return;
+      const meta = await sheetsFetch('?fields=sheets.properties.title');
+      const have = new Set((meta.sheets || []).map(s => s.properties.title));
+      const requests = [];
+      [SHEET_CHECKS, SHEET_SUPPLIERS, SHEET_BANKS].forEach(t => {
+        if (!have.has(t)) requests.push({ addSheet: { properties: { title: t } } });
+      });
+      if (requests.length) {
+        await sheetsFetch(':batchUpdate', {
+          method: 'POST',
+          body: JSON.stringify({ requests })
+        });
+      }
+
+      await ensureHeader(SHEET_CHECKS, CHECK_HEADERS);
+      await ensureHeader(SHEET_SUPPLIERS, ['Supplier']);
+      await ensureHeader(SHEET_BANKS, ['Bank']);
+      state.ensuredSheets = true;
+    }
+
+    async function ensureHeader(sheet, headers) {
+      const range = `${sheet}!A1:${columnLetter(headers.length)}1`;
+      const resp = await sheetsFetch('/values/' + encodeURIComponent(range));
+      const have = (resp.values && resp.values[0]) || [];
+      const matches = have.length === headers.length && headers.every((h, i) => have[i] === h);
+      if (matches) return;
+      await sheetsFetch('/values/' + encodeURIComponent(range) + '?valueInputOption=RAW', {
+        method: 'PUT',
+        body: JSON.stringify({ values: [headers] })
+      });
+    }
+
+    function columnLetter(n) {
+      let s = '';
+      while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
+      return s;
+    }
+
+    async function getColumn(sheet) {
+      const resp = await sheetsFetch('/values/' + encodeURIComponent(sheet + '!A2:A'));
+      const rows = resp.values || [];
+      const seen = new Set(), out = [];
+      rows.forEach(r => {
+        const v = String(r[0] || '').trim();
+        if (!v) return;
+        const k = v.toLowerCase();
+        if (seen.has(k)) return;
+        seen.add(k);
+        out.push(v);
+      });
+      out.sort((a, b) => a.localeCompare(b));
+      return out;
+    }
+
+    async function appendRow(sheet, row) {
+      const range = sheet + '!A:A';
+      await sheetsFetch(
+        '/values/' + encodeURIComponent(range) +
+        ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS',
+        { method: 'POST', body: JSON.stringify({ values: [row] }) }
+      );
+    }
+
+    async function loadLists() {
+      const [suppliers, banks] = await Promise.all([
+        getColumn(SHEET_SUPPLIERS),
+        getColumn(SHEET_BANKS)
+      ]);
+      state.suppliers = suppliers;
+      state.banks = banks;
+    }
+
+    async function saveCheck(p) {
+      await ensureSheetsExist();
+      const amount = Number(p.amount);
+      const existingSuppliers = state.suppliers.map(s => s.toLowerCase());
+      const existingBanks = state.banks.map(s => s.toLowerCase());
+
+      await appendRow(SHEET_CHECKS, [
+        new Date().toISOString(),
+        p.supplier,
+        p.checkDate,
+        p.checkNumber,
+        p.bank,
+        amount,
+        p.notes
+      ]);
+
+      if (!existingSuppliers.includes(p.supplier.toLowerCase())) {
+        await appendRow(SHEET_SUPPLIERS, [p.supplier]);
+      }
+      if (!existingBanks.includes(p.bank.toLowerCase())) {
+        await appendRow(SHEET_BANKS, [p.bank]);
+      }
+    }
+
+    // ---------- Form / UI ----------
 
     function onPrint() {
       const payload = collectPayload();
@@ -343,7 +569,6 @@
     }
 
     function formatCheckDate(iso) {
-      // ISO yyyy-mm-dd -> "MM  DD  YYYY" with spacing for boxed date area.
       const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
       if (!m) return iso;
       return `${m[2]}  ${m[3]}  ${m[1]}`;
@@ -389,16 +614,6 @@
       return `${intToWords(pesos)} PESOS AND ${cc}/100 ONLY`;
     }
 
-    function loadLists() {
-      google.script.run
-        .withSuccessHandler(data => {
-          state.suppliers = data.suppliers || [];
-          state.banks = data.banks || [];
-        })
-        .withFailureHandler(err => console.error('Failed to load lists', err))
-        .getLists();
-    }
-
     function attachAutocomplete(inputId, listId, getOptions) {
       const input = document.getElementById(inputId);
       const list = document.getElementById(listId);
@@ -407,19 +622,12 @@
       const render = () => {
         const q = input.value.trim().toLowerCase();
         const options = getOptions();
-        const matches = q
-          ? options.filter(o => o.toLowerCase().includes(q))
-          : options.slice();
-
+        const matches = q ? options.filter(o => o.toLowerCase().includes(q)) : options.slice();
         const exact = options.some(o => o.toLowerCase() === q);
         const items = matches.slice(0, 8).map(m => ({ label: m, isNew: false }));
         if (q && !exact) items.unshift({ label: input.value.trim(), isNew: true });
 
-        if (!items.length) {
-          list.classList.remove('show');
-          list.innerHTML = '';
-          return;
-        }
+        if (!items.length) { list.classList.remove('show'); list.innerHTML = ''; return; }
 
         list.innerHTML = items.map((it, i) =>
           `<div class="suggestion${i === activeIndex ? ' active' : ''}" data-value="${escapeHtml(it.label)}">
@@ -439,9 +647,7 @@
 
       input.addEventListener('focus', () => { activeIndex = -1; render(); });
       input.addEventListener('input', () => { activeIndex = -1; render(); });
-      input.addEventListener('blur', () => {
-        setTimeout(() => list.classList.remove('show'), 120);
-      });
+      input.addEventListener('blur', () => { setTimeout(() => list.classList.remove('show'), 120); });
       input.addEventListener('keydown', e => {
         const items = list.querySelectorAll('.suggestion');
         if (!items.length) return;
@@ -472,12 +678,10 @@
         if (!isFinite(n)) return;
         input.value = n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       });
-      input.addEventListener('focus', () => {
-        input.value = input.value.replace(/,/g, '');
-      });
+      input.addEventListener('focus', () => { input.value = input.value.replace(/,/g, ''); });
     }
 
-    function onSubmit(e) {
+    async function onSubmit(e) {
       e.preventDefault();
       const btn = document.getElementById('submitBtn');
       const payload = collectPayload();
@@ -488,27 +692,22 @@
       btn.textContent = 'Saving...';
       hideToast();
 
-      google.script.run
-        .withSuccessHandler(() => {
-          showToast('Check saved.', 'success');
-          resetForm(payload);
-          loadLists();
-          btn.disabled = false;
-          btn.textContent = 'Save Check';
-        })
-        .withFailureHandler(err => {
-          showToast(err && err.message ? err.message : 'Save failed.', 'error');
-          btn.disabled = false;
-          btn.textContent = 'Save Check';
-        })
-        .saveCheck(payload);
+      try {
+        await saveCheck(payload);
+        showToast('Check saved.', 'success');
+        resetForm(payload);
+        loadLists();
+      } catch (err) {
+        showToast(err.message || 'Save failed.', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save Check';
+      }
     }
 
     function resetForm(last) {
       document.getElementById('checkForm').reset();
-      if (last && last.checkDate) {
-        document.getElementById('checkDate').value = last.checkDate;
-      }
+      if (last && last.checkDate) document.getElementById('checkDate').value = last.checkDate;
       document.getElementById('supplier').focus();
     }
 
@@ -516,13 +715,14 @@
       const t = document.getElementById('toast');
       t.textContent = msg;
       t.className = 'toast show ' + kind;
-      if (kind === 'success') {
-        setTimeout(hideToast, 3000);
-      }
+      if (kind === 'success') setTimeout(hideToast, 3000);
     }
+    function hideToast() { document.getElementById('toast').className = 'toast'; }
 
-    function hideToast() {
-      document.getElementById('toast').className = 'toast';
+    function showSigninToast(msg, kind) {
+      const t = document.getElementById('signinToast');
+      t.textContent = msg;
+      t.className = 'toast show ' + kind;
     }
 
     function escapeHtml(s) {
