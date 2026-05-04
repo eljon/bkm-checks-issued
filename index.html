@@ -28,9 +28,34 @@
       padding: 16px;
     }
 
-    .container { max-width: 520px; margin: 0 auto; }
+    .container { max-width: 560px; margin: 0 auto; }
 
     h1 { font-size: 20px; margin: 8px 0 16px; }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 12px;
+      background: white;
+      border-radius: 8px;
+      padding: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .tab {
+      flex: 1;
+      padding: 10px 8px;
+      background: transparent;
+      color: var(--muted);
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      margin: 0;
+      width: auto;
+    }
+    .tab:hover:not(.active) { background: #f3f4f6; }
+    .tab.active { background: var(--primary); color: white; }
 
     .card {
       background: var(--card);
@@ -38,6 +63,7 @@
       padding: 20px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.08);
     }
+    .card + .card { margin-top: 12px; }
 
     .field { margin-bottom: 14px; position: relative; }
 
@@ -64,6 +90,7 @@
       border-color: var(--primary);
       box-shadow: 0 0 0 3px var(--focus);
     }
+    input[readonly] { background: #f3f4f6; color: var(--muted); }
     textarea { min-height: 70px; resize: vertical; }
 
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -142,36 +169,102 @@
     }
     .actions .btn-secondary:hover:not(:disabled) { background: #eff6ff; }
 
-    /* ---------- Check print overlay ----------
-       Default tuned for Security Bank stock (~175mm x 75mm landscape).
-       The check is printed PORTRAIT so it feeds short-edge first into the
-       printer (LEFT edge of the check enters first). The overlay below is
-       still authored in LANDSCAPE coordinates and rotated for print.
+    .check-row {
+      display: grid;
+      grid-template-columns: 110px 1fr;
+      gap: 8px;
+      padding: 8px 0;
+      font-size: 14px;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    .check-row:last-of-type { border-bottom: none; }
+    .check-row .lbl { color: var(--muted); }
+    .check-row .val { word-break: break-word; }
 
-       Tweak --check-* offsets to align with your specific check stock.
-       --check-page-w / --check-page-h must match the actual paper size you
-       set in the printer driver. */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+    .stat {
+      background: #f9fafb;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #f3f4f6;
+    }
+    .stat-label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+    .stat-value {
+      font-size: 18px;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+    .stat-value.lg { font-size: 22px; }
+    .stat.span-2 { grid-column: 1 / -1; }
+
+    .breakdown { margin-top: 18px; }
+    .breakdown h3 {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin: 0 0 8px;
+    }
+    .breakdown-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 12px;
+      padding: 8px 0;
+      font-size: 14px;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    .breakdown-row:last-child { border-bottom: none; }
+    .breakdown-row .name { font-weight: 500; }
+    .breakdown-row .count { color: var(--muted); font-size: 13px; }
+
+    .check-list { margin-top: 18px; }
+    .check-list .item {
+      padding: 10px 0;
+      border-bottom: 1px solid #f3f4f6;
+      font-size: 14px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+    }
+    .check-list .item:last-child { border-bottom: none; }
+    .check-list .item .meta { color: var(--muted); font-size: 12px; }
+
+    .hidden { display: none !important; }
+
+    /* ---------- Check print overlay ----------
+       Tuned for Security Bank check stock (~175mm x 75mm landscape).
+       Page is portrait 75mm x 175mm so check feeds short-edge-first into the
+       printer (LEFT edge of the check enters first). The overlay is authored
+       in landscape and rotated 90° CW for print. */
     :root {
       --check-w: 175mm;
       --check-h: 75mm;
       --check-page-w: 75mm;
       --check-page-h: 175mm;
 
-      /* DATE: 8 boxed cells M M D D Y Y Y Y at top right */
       --check-date-top: 17mm;
       --check-date-right: 10mm;
       --check-date-spacing: 2.6mm;
 
-      /* PAY TO THE ORDER OF: line after the label, mid-left */
       --check-payee-top: 30mm;
       --check-payee-left: 33mm;
 
-      /* PESOS line: amount in words below the payee */
       --check-words-top: 38mm;
       --check-words-left: 18mm;
       --check-words-width: 95mm;
 
-      /* Amount in figures: right of payee, after the peso symbol */
       --check-amount-top: 30mm;
       --check-amount-right: 6mm;
     }
@@ -236,8 +329,6 @@
         top: 0;
         left: 0;
         transform-origin: 0 0;
-        /* Rotate landscape overlay 90° CW and shift onto the portrait page,
-           so the LEFT edge of the check maps to the TOP of the page. */
         transform: translate(var(--check-page-w), 0) rotate(90deg);
       }
     }
@@ -246,52 +337,103 @@
 </head>
 <body>
   <div class="container">
-    <h1>Record Check Issued</h1>
-    <div class="card">
-      <form id="checkForm" autocomplete="off">
-        <div class="field">
-          <label for="supplier">Supplier</label>
-          <input type="text" id="supplier" name="supplier" required>
-          <div class="suggestions" id="supplierSuggestions"></div>
-        </div>
+    <h1>BKM Checks Issued</h1>
 
-        <div class="row">
+    <div class="tabs">
+      <button type="button" class="tab active" data-tab="enter">Enter Check</button>
+      <button type="button" class="tab" data-tab="viewer">Check Viewer</button>
+      <button type="button" class="tab" data-tab="data">Check Data</button>
+    </div>
+
+    <!-- ==================== Enter Check ==================== -->
+    <div class="tab-panel" id="tab-enter">
+      <div class="card">
+        <form id="checkForm" autocomplete="off">
           <div class="field">
-            <label for="checkDate">Check Date</label>
-            <input type="date" id="checkDate" name="checkDate" required>
+            <label for="supplier">Supplier</label>
+            <input type="text" id="supplier" required>
+            <div class="suggestions" id="supplierSuggestions"></div>
           </div>
+
+          <div class="row">
+            <div class="field">
+              <label for="checkDate">Check Date</label>
+              <input type="date" id="checkDate" required>
+            </div>
+            <div class="field">
+              <label for="checkNumber">Check Number</label>
+              <input type="text" id="checkNumber" inputmode="numeric" required>
+            </div>
+          </div>
+
           <div class="field">
-            <label for="checkNumber">Check Number</label>
-            <input type="text" id="checkNumber" name="checkNumber" inputmode="numeric" required>
+            <label for="bank">Bank</label>
+            <input type="text" id="bank" required>
+            <div class="suggestions" id="bankSuggestions"></div>
           </div>
-        </div>
 
-        <div class="field">
-          <label for="bank">Bank</label>
-          <input type="text" id="bank" name="bank" required>
-          <div class="suggestions" id="bankSuggestions"></div>
-        </div>
-
-        <div class="field">
-          <label for="amount">Amount</label>
-          <div class="amount-wrap">
-            <span class="currency">&#8369;</span>
-            <input type="text" id="amount" name="amount" inputmode="decimal" placeholder="0.00" required>
+          <div class="field">
+            <label for="amount">Amount</label>
+            <div class="amount-wrap">
+              <span class="currency">&#8369;</span>
+              <input type="text" id="amount" inputmode="decimal" placeholder="0.00" required>
+            </div>
           </div>
-        </div>
 
-        <div class="field">
-          <label for="notes">Notes <span class="opt">(optional)</span></label>
-          <textarea id="notes" name="notes"></textarea>
-        </div>
+          <div class="field">
+            <label for="notes">Notes <span class="opt">(optional)</span></label>
+            <textarea id="notes"></textarea>
+          </div>
 
-        <button type="button" id="printSaveBtn">Print &amp; Save</button>
-        <div class="actions">
-          <button type="button" id="printBtn" class="btn-secondary">Print Only</button>
-          <button type="submit" id="submitBtn" class="btn-secondary">Save Only</button>
-        </div>
-        <div class="toast" id="toast"></div>
-      </form>
+          <button type="button" id="printSaveBtn">Print &amp; Save</button>
+          <div class="actions">
+            <button type="button" id="printBtn" class="btn-secondary">Print Only</button>
+            <button type="submit" id="submitBtn" class="btn-secondary">Save Only</button>
+          </div>
+          <div class="toast" id="enterToast"></div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ==================== Check Viewer ==================== -->
+    <div class="tab-panel hidden" id="tab-viewer">
+      <div class="card">
+        <form id="viewerForm" autocomplete="off">
+          <div class="field">
+            <label for="vSearch">Check Number</label>
+            <input type="text" id="vSearch" inputmode="numeric" required>
+          </div>
+          <button type="submit" id="vSearchBtn">Search</button>
+          <div class="toast" id="viewerToast"></div>
+        </form>
+      </div>
+      <div id="vResults"></div>
+    </div>
+
+    <!-- ==================== Check Data ==================== -->
+    <div class="tab-panel hidden" id="tab-data">
+      <div class="card">
+        <form id="dataForm" autocomplete="off">
+          <div class="field">
+            <label for="dSupplier">Supplier <span class="opt">(optional)</span></label>
+            <input type="text" id="dSupplier">
+            <div class="suggestions" id="dSupplierSuggestions"></div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="dFrom">From <span class="opt">(optional)</span></label>
+              <input type="date" id="dFrom">
+            </div>
+            <div class="field">
+              <label for="dTo">To <span class="opt">(optional)</span></label>
+              <input type="date" id="dTo">
+            </div>
+          </div>
+          <button type="submit" id="dSearchBtn">Search</button>
+          <div class="toast" id="dataToast"></div>
+        </form>
+      </div>
+      <div id="dResults"></div>
     </div>
   </div>
 
@@ -303,32 +445,34 @@
   </div>
 
   <script>
-    const state = { suppliers: [], banks: [] };
+    const state = {
+      suppliers: [],
+      banks: [],
+      viewerMatches: [],
+      editingRowIndex: null
+    };
 
     document.addEventListener('DOMContentLoaded', async () => {
       if (!window.APP_CONFIG || !APP_CONFIG.apiUrl || APP_CONFIG.apiUrl.startsWith('PUT_')) {
-        showToast('Edit config.js with your Apps Script Web App URL.', 'error');
+        showToast('enterToast', 'Edit config.js with your Apps Script Web App URL.', 'error');
         return;
       }
 
-      attachAutocomplete('supplier', 'supplierSuggestions', () => state.suppliers);
-      attachAutocomplete('bank', 'bankSuggestions', () => state.banks);
-      attachAmountFormatter();
-      document.getElementById('checkForm').addEventListener('submit', onSubmit);
-      document.getElementById('printBtn').addEventListener('click', onPrint);
-      document.getElementById('printSaveBtn').addEventListener('click', onPrintSave);
+      setupTabs();
+      setupEnterTab();
+      setupViewerTab();
+      setupDataTab();
 
       try {
         await loadLists();
       } catch (err) {
-        showToast('Could not load lists: ' + err.message, 'error');
+        showToast('enterToast', 'Could not load lists: ' + err.message, 'error');
       }
     });
 
-    // ---------- API ----------
+    // ==================== API ====================
 
     async function api(action, payload) {
-      // text/plain avoids the CORS preflight that Apps Script doesn't handle.
       const resp = await fetch(APP_CONFIG.apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -349,56 +493,31 @@
       state.banks = data.banks || [];
     }
 
-    async function saveCheck(payload) {
-      await api('saveCheck', payload);
+    // ==================== Tabs ====================
+
+    function setupTabs() {
+      document.querySelectorAll('.tab').forEach(btn => {
+        btn.addEventListener('click', () => activateTab(btn.dataset.tab));
+      });
     }
 
-    // ---------- Print ----------
-
-    function onPrint() {
-      const payload = collectPayload();
-      const err = validate(payload);
-      if (err) { showToast(err, 'error'); return; }
-      fillCheck(payload);
-      window.print();
+    function activateTab(name) {
+      document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('hidden', p.id !== 'tab-' + name));
     }
 
-    async function onPrintSave() {
-      const btn = document.getElementById('printSaveBtn');
-      const payload = collectPayload();
-      const err = validate(payload);
-      if (err) { showToast(err, 'error'); return; }
-
-      btn.disabled = true;
-      btn.textContent = 'Saving...';
-      hideToast();
-
-      try {
-        await saveCheck(payload);
-        fillCheck(payload);
-        window.print();
-        showToast('Check saved.', 'success');
-        resetForm(payload);
-        loadLists();
-      } catch (err) {
-        showToast(err.message || 'Save failed.', 'error');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Print & Save';
-      }
-    }
+    // ==================== Print ====================
 
     function fillCheck(p) {
       const amt = Number(p.amount);
       document.getElementById('pcDate').textContent = formatCheckDate(p.checkDate);
-      document.getElementById('pcPayee').textContent = p.supplier.toUpperCase();
+      document.getElementById('pcPayee').textContent = String(p.supplier).toUpperCase();
       document.getElementById('pcWords').textContent = pesoToWords(amt);
       document.getElementById('pcAmt').textContent =
         '**' + amt.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '**';
     }
 
     function formatCheckDate(iso) {
-      // MMDDYYYY — letter-spacing positions each digit in its own box.
       const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
       if (!m) return iso;
       return `${m[2]}${m[3]}${m[1]}`;
@@ -444,9 +563,18 @@
       return `${intToWords(pesos)} PESOS AND ${cc}/100 ONLY`;
     }
 
-    // ---------- Form ----------
+    // ==================== Enter Check tab ====================
 
-    function collectPayload() {
+    function setupEnterTab() {
+      attachAutocomplete('supplier', 'supplierSuggestions', () => state.suppliers);
+      attachAutocomplete('bank', 'bankSuggestions', () => state.banks);
+      attachAmountFormatter('amount');
+      document.getElementById('checkForm').addEventListener('submit', onEnterSubmit);
+      document.getElementById('printBtn').addEventListener('click', onEnterPrint);
+      document.getElementById('printSaveBtn').addEventListener('click', onEnterPrintSave);
+    }
+
+    function collectEnterPayload() {
       return {
         supplier: document.getElementById('supplier').value.trim(),
         checkDate: document.getElementById('checkDate').value,
@@ -467,6 +595,371 @@
       return null;
     }
 
+    function onEnterPrint() {
+      const payload = collectEnterPayload();
+      const err = validate(payload);
+      if (err) { showToast('enterToast', err, 'error'); return; }
+      fillCheck(payload);
+      window.print();
+    }
+
+    async function onEnterPrintSave() {
+      const btn = document.getElementById('printSaveBtn');
+      const payload = collectEnterPayload();
+      const err = validate(payload);
+      if (err) { showToast('enterToast', err, 'error'); return; }
+
+      btn.disabled = true; btn.textContent = 'Saving...';
+      hideToast('enterToast');
+      try {
+        await api('saveCheck', payload);
+        fillCheck(payload);
+        window.print();
+        showToast('enterToast', 'Check saved.', 'success');
+        resetEnterForm(payload);
+        loadLists();
+      } catch (err) {
+        showToast('enterToast', err.message || 'Save failed.', 'error');
+      } finally {
+        btn.disabled = false; btn.textContent = 'Print & Save';
+      }
+    }
+
+    async function onEnterSubmit(e) {
+      e.preventDefault();
+      const btn = document.getElementById('submitBtn');
+      const payload = collectEnterPayload();
+      const err = validate(payload);
+      if (err) { showToast('enterToast', err, 'error'); return; }
+
+      btn.disabled = true; btn.textContent = 'Saving...';
+      hideToast('enterToast');
+      try {
+        await api('saveCheck', payload);
+        showToast('enterToast', 'Check saved.', 'success');
+        resetEnterForm(payload);
+        loadLists();
+      } catch (err) {
+        showToast('enterToast', err.message || 'Save failed.', 'error');
+      } finally {
+        btn.disabled = false; btn.textContent = 'Save Only';
+      }
+    }
+
+    function resetEnterForm(last) {
+      document.getElementById('checkForm').reset();
+      if (last && last.checkDate) document.getElementById('checkDate').value = last.checkDate;
+      document.getElementById('supplier').focus();
+    }
+
+    // ==================== Check Viewer tab ====================
+
+    function setupViewerTab() {
+      document.getElementById('viewerForm').addEventListener('submit', onViewerSearch);
+    }
+
+    async function onViewerSearch(e) {
+      e.preventDefault();
+      const num = document.getElementById('vSearch').value.trim();
+      if (!num) return;
+      const btn = document.getElementById('vSearchBtn');
+      btn.disabled = true; btn.textContent = 'Searching...';
+      hideToast('viewerToast');
+      document.getElementById('vResults').innerHTML = '';
+      state.editingRowIndex = null;
+
+      try {
+        const data = await api('findChecks', { checkNumber: num });
+        state.viewerMatches = data.matches || [];
+        if (!state.viewerMatches.length) {
+          showToast('viewerToast', 'No checks found with that number.', 'error');
+        } else {
+          renderViewerMatches();
+        }
+      } catch (err) {
+        showToast('viewerToast', err.message || 'Search failed.', 'error');
+      } finally {
+        btn.disabled = false; btn.textContent = 'Search';
+      }
+    }
+
+    function renderViewerMatches() {
+      const container = document.getElementById('vResults');
+      container.innerHTML = state.viewerMatches.map((c, i) =>
+        state.editingRowIndex === c.rowIndex ? renderEditCard(c, i) : renderViewCard(c, i)
+      ).join('');
+      attachViewerHandlers();
+    }
+
+    function renderViewCard(c, i) {
+      return `<div class="card" data-row="${c.rowIndex}">
+        <div class="check-row"><span class="lbl">Supplier</span><span class="val">${escapeHtml(c.supplier)}</span></div>
+        <div class="check-row"><span class="lbl">Check Date</span><span class="val">${escapeHtml(c.checkDate)}</span></div>
+        <div class="check-row"><span class="lbl">Check #</span><span class="val">${escapeHtml(c.checkNumber)}</span></div>
+        <div class="check-row"><span class="lbl">Bank</span><span class="val">${escapeHtml(c.bank)}</span></div>
+        <div class="check-row"><span class="lbl">Amount</span><span class="val">&#8369;${fmtAmt(c.amount)}</span></div>
+        <div class="check-row"><span class="lbl">Notes</span><span class="val">${escapeHtml(c.notes || '—')}</span></div>
+        <div class="actions">
+          <button type="button" class="btn-secondary" data-action="edit" data-i="${i}">Edit</button>
+          <button type="button" class="btn-secondary" data-action="print" data-i="${i}">Print</button>
+        </div>
+      </div>`;
+    }
+
+    function renderEditCard(c, i) {
+      return `<div class="card" data-row="${c.rowIndex}">
+        <div class="field">
+          <label>Supplier</label>
+          <input type="text" data-edit="supplier" value="${escapeAttr(c.supplier)}" required>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>Check Date</label>
+            <input type="date" data-edit="checkDate" value="${escapeAttr(c.checkDate)}" required>
+          </div>
+          <div class="field">
+            <label>Check Number</label>
+            <input type="text" data-edit="checkNumber" inputmode="numeric" value="${escapeAttr(c.checkNumber)}" required>
+          </div>
+        </div>
+        <div class="field">
+          <label>Bank</label>
+          <input type="text" data-edit="bank" value="${escapeAttr(c.bank)}" required>
+        </div>
+        <div class="field">
+          <label>Amount</label>
+          <div class="amount-wrap">
+            <span class="currency">&#8369;</span>
+            <input type="text" data-edit="amount" inputmode="decimal" value="${fmtAmt(c.amount)}" required>
+          </div>
+        </div>
+        <div class="field">
+          <label>Notes <span class="opt">(optional)</span></label>
+          <textarea data-edit="notes">${escapeHtml(c.notes || '')}</textarea>
+        </div>
+        <button type="button" data-action="save" data-i="${i}">Save Changes</button>
+        <div class="actions">
+          <button type="button" class="btn-secondary" data-action="cancel" data-i="${i}">Cancel</button>
+          <button type="button" class="btn-secondary" data-action="print" data-i="${i}">Print</button>
+        </div>
+      </div>`;
+    }
+
+    function attachViewerHandlers() {
+      const container = document.getElementById('vResults');
+      container.querySelectorAll('button[data-action]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const action = btn.dataset.action;
+          const i = Number(btn.dataset.i);
+          if (action === 'edit')   onViewerEdit(i);
+          if (action === 'cancel') onViewerCancel();
+          if (action === 'save')   onViewerSave(i, btn);
+          if (action === 'print')  onViewerPrint(i);
+        });
+      });
+    }
+
+    function onViewerEdit(i) {
+      state.editingRowIndex = state.viewerMatches[i].rowIndex;
+      renderViewerMatches();
+    }
+
+    function onViewerCancel() {
+      state.editingRowIndex = null;
+      renderViewerMatches();
+    }
+
+    async function onViewerSave(i, btn) {
+      const card = btn.closest('.card');
+      const payload = {
+        rowIndex: state.viewerMatches[i].rowIndex,
+        supplier: card.querySelector('[data-edit="supplier"]').value.trim(),
+        checkDate: card.querySelector('[data-edit="checkDate"]').value,
+        checkNumber: card.querySelector('[data-edit="checkNumber"]').value.trim(),
+        bank: card.querySelector('[data-edit="bank"]').value.trim(),
+        amount: card.querySelector('[data-edit="amount"]').value.replace(/,/g, '').trim(),
+        notes: card.querySelector('[data-edit="notes"]').value.trim()
+      };
+      const err = validate(payload);
+      if (err) { showToast('viewerToast', err, 'error'); return; }
+
+      btn.disabled = true; btn.textContent = 'Saving...';
+      hideToast('viewerToast');
+      try {
+        await api('updateCheck', payload);
+        Object.assign(state.viewerMatches[i], {
+          supplier: payload.supplier,
+          checkDate: payload.checkDate,
+          checkNumber: payload.checkNumber,
+          bank: payload.bank,
+          amount: Number(payload.amount),
+          notes: payload.notes
+        });
+        state.editingRowIndex = null;
+        renderViewerMatches();
+        showToast('viewerToast', 'Check updated.', 'success');
+        loadLists();
+      } catch (err) {
+        showToast('viewerToast', err.message || 'Update failed.', 'error');
+        btn.disabled = false; btn.textContent = 'Save Changes';
+      }
+    }
+
+    function onViewerPrint(i) {
+      const card = document.querySelector(`#vResults .card[data-row="${state.viewerMatches[i].rowIndex}"]`);
+      const editing = state.editingRowIndex === state.viewerMatches[i].rowIndex;
+      let p;
+      if (editing) {
+        p = {
+          supplier: card.querySelector('[data-edit="supplier"]').value.trim(),
+          checkDate: card.querySelector('[data-edit="checkDate"]').value,
+          checkNumber: card.querySelector('[data-edit="checkNumber"]').value.trim(),
+          bank: card.querySelector('[data-edit="bank"]').value.trim(),
+          amount: card.querySelector('[data-edit="amount"]').value.replace(/,/g, '').trim(),
+          notes: card.querySelector('[data-edit="notes"]').value.trim()
+        };
+        const err = validate(p);
+        if (err) { showToast('viewerToast', err, 'error'); return; }
+      } else {
+        p = state.viewerMatches[i];
+      }
+      fillCheck(p);
+      window.print();
+    }
+
+    // ==================== Check Data tab ====================
+
+    function setupDataTab() {
+      attachAutocomplete('dSupplier', 'dSupplierSuggestions', () => state.suppliers);
+      document.getElementById('dataForm').addEventListener('submit', onDataSearch);
+    }
+
+    async function onDataSearch(e) {
+      e.preventDefault();
+      const supplier = document.getElementById('dSupplier').value.trim();
+      const from = document.getElementById('dFrom').value;
+      const to = document.getElementById('dTo').value;
+
+      const btn = document.getElementById('dSearchBtn');
+      btn.disabled = true; btn.textContent = 'Searching...';
+      hideToast('dataToast');
+      document.getElementById('dResults').innerHTML = '';
+
+      try {
+        const data = await api('searchChecks', { supplier, from, to });
+        renderDataResults(data.checks || []);
+      } catch (err) {
+        showToast('dataToast', err.message || 'Search failed.', 'error');
+      } finally {
+        btn.disabled = false; btn.textContent = 'Search';
+      }
+    }
+
+    function renderDataResults(checks) {
+      const container = document.getElementById('dResults');
+      if (!checks.length) {
+        container.innerHTML = '<div class="card">No checks match the filters.</div>';
+        return;
+      }
+
+      const total = checks.reduce((s, c) => s + c.amount, 0);
+      const count = checks.length;
+      const avg = total / count;
+      const amounts = checks.map(c => c.amount);
+      const min = Math.min.apply(null, amounts);
+      const max = Math.max.apply(null, amounts);
+
+      const earliestStr = checks.map(c => c.checkDate).filter(Boolean).sort()[0] || '—';
+      const latestStr = checks.map(c => c.checkDate).filter(Boolean).sort().slice(-1)[0] || '—';
+
+      const banks = aggregate(checks, c => c.bank);
+      const suppliers = aggregate(checks, c => c.supplier);
+
+      const recent = checks.slice().sort((a, b) => (b.checkDate || '').localeCompare(a.checkDate || '')).slice(0, 10);
+
+      container.innerHTML = `
+        <div class="card">
+          <div class="stats-grid">
+            <div class="stat span-2">
+              <div class="stat-label">Total Amount</div>
+              <div class="stat-value lg">&#8369;${fmtAmt(total)}</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Checks Issued</div>
+              <div class="stat-value">${count}</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Average</div>
+              <div class="stat-value">&#8369;${fmtAmt(avg)}</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Smallest</div>
+              <div class="stat-value">&#8369;${fmtAmt(min)}</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Largest</div>
+              <div class="stat-value">&#8369;${fmtAmt(max)}</div>
+            </div>
+            <div class="stat span-2">
+              <div class="stat-label">Date Range</div>
+              <div class="stat-value">${escapeHtml(earliestStr)} &nbsp;→&nbsp; ${escapeHtml(latestStr)}</div>
+            </div>
+          </div>
+
+          <div class="breakdown">
+            <h3>By Bank</h3>
+            ${banks.map(b => `
+              <div class="breakdown-row">
+                <span class="name">${escapeHtml(b.key)}</span>
+                <span class="count">${b.count} check${b.count === 1 ? '' : 's'}</span>
+                <span>&#8369;${fmtAmt(b.total)}</span>
+              </div>
+            `).join('')}
+          </div>
+
+          <div class="breakdown">
+            <h3>By Supplier (top 5)</h3>
+            ${suppliers.slice(0, 5).map(s => `
+              <div class="breakdown-row">
+                <span class="name">${escapeHtml(s.key)}</span>
+                <span class="count">${s.count} check${s.count === 1 ? '' : 's'}</span>
+                <span>&#8369;${fmtAmt(s.total)}</span>
+              </div>
+            `).join('')}
+          </div>
+
+          <div class="breakdown">
+            <h3>Recent (10 most recent by check date)</h3>
+            <div class="check-list">
+              ${recent.map(c => `
+                <div class="item">
+                  <div>
+                    <div><strong>${escapeHtml(c.supplier)}</strong></div>
+                    <div class="meta">${escapeHtml(c.checkDate)} · ${escapeHtml(c.bank)} · #${escapeHtml(c.checkNumber)}</div>
+                  </div>
+                  <div>&#8369;${fmtAmt(c.amount)}</div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function aggregate(checks, keyFn) {
+      const map = new Map();
+      checks.forEach(c => {
+        const k = keyFn(c) || '—';
+        const cur = map.get(k) || { key: k, count: 0, total: 0 };
+        cur.count++;
+        cur.total += c.amount;
+        map.set(k, cur);
+      });
+      return Array.from(map.values()).sort((a, b) => b.total - a.total);
+    }
+
+    // ==================== Shared utilities ====================
+
     function attachAutocomplete(inputId, listId, getOptions) {
       const input = document.getElementById(inputId);
       const list = document.getElementById(listId);
@@ -478,12 +971,12 @@
         const matches = q ? options.filter(o => o.toLowerCase().includes(q)) : options.slice();
         const exact = options.some(o => o.toLowerCase() === q);
         const items = matches.slice(0, 8).map(m => ({ label: m, isNew: false }));
-        if (q && !exact) items.unshift({ label: input.value.trim(), isNew: true });
+        if (q && !exact && input.required !== false) items.unshift({ label: input.value.trim(), isNew: true });
 
         if (!items.length) { list.classList.remove('show'); list.innerHTML = ''; return; }
 
         list.innerHTML = items.map((it, i) =>
-          `<div class="suggestion${i === activeIndex ? ' active' : ''}" data-value="${escapeHtml(it.label)}">
+          `<div class="suggestion${i === activeIndex ? ' active' : ''}" data-value="${escapeAttr(it.label)}">
             ${escapeHtml(it.label)}${it.isNew ? '<span class="new-tag">NEW</span>' : ''}
           </div>`
         ).join('');
@@ -522,8 +1015,8 @@
       });
     }
 
-    function attachAmountFormatter() {
-      const input = document.getElementById('amount');
+    function attachAmountFormatter(inputId) {
+      const input = document.getElementById(inputId);
       input.addEventListener('blur', () => {
         const raw = input.value.replace(/,/g, '').trim();
         if (!raw) return;
@@ -534,49 +1027,24 @@
       input.addEventListener('focus', () => { input.value = input.value.replace(/,/g, ''); });
     }
 
-    async function onSubmit(e) {
-      e.preventDefault();
-      const btn = document.getElementById('submitBtn');
-      const payload = collectPayload();
-      const err = validate(payload);
-      if (err) { showToast(err, 'error'); return; }
-
-      btn.disabled = true;
-      btn.textContent = 'Saving...';
-      hideToast();
-
-      try {
-        await saveCheck(payload);
-        showToast('Check saved.', 'success');
-        resetForm(payload);
-        loadLists();
-      } catch (err) {
-        showToast(err.message || 'Save failed.', 'error');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Save Only';
-      }
-    }
-
-    function resetForm(last) {
-      document.getElementById('checkForm').reset();
-      if (last && last.checkDate) document.getElementById('checkDate').value = last.checkDate;
-      document.getElementById('supplier').focus();
-    }
-
-    function showToast(msg, kind) {
-      const t = document.getElementById('toast');
+    function showToast(id, msg, kind) {
+      const t = document.getElementById(id);
       t.textContent = msg;
       t.className = 'toast show ' + kind;
-      if (kind === 'success') setTimeout(hideToast, 3000);
+      if (kind === 'success') setTimeout(() => hideToast(id), 3000);
     }
-    function hideToast() { document.getElementById('toast').className = 'toast'; }
+    function hideToast(id) { document.getElementById(id).className = 'toast'; }
+
+    function fmtAmt(n) {
+      return Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
 
     function escapeHtml(s) {
-      return String(s).replace(/[&<>"']/g, c => ({
+      return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
       }[c]));
     }
+    function escapeAttr(s) { return escapeHtml(s); }
   </script>
 </body>
 </html>

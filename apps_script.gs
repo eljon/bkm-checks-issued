@@ -26,9 +26,12 @@ function doPost(e) {
       return json({ error: 'unauthorized' });
     }
     switch (req.action) {
-      case 'getLists':  return json(getLists_());
-      case 'saveCheck': return json(saveCheck_(req.payload || {}));
-      default:          return json({ error: 'unknown action: ' + req.action });
+      case 'getLists':     return json(getLists_());
+      case 'saveCheck':    return json(saveCheck_(req.payload || {}));
+      case 'findChecks':   return json(findChecks_(req.payload || {}));
+      case 'updateCheck':  return json(updateCheck_(req.payload || {}));
+      case 'searchChecks': return json(searchChecks_(req.payload || {}));
+      default:             return json({ error: 'unknown action: ' + req.action });
     }
   } catch (err) {
     return json({ error: (err && err.message) || String(err) });
@@ -73,6 +76,100 @@ function saveCheck_(p) {
   checks.getRange(row, 6).setNumberFormat('#,##0.00');
 
   return { ok: true };
+}
+
+function findChecks_(p) {
+  ensureSheets_();
+  const checkNumber = String(p.checkNumber || '').trim();
+  if (!checkNumber) throw new Error('Check number is required.');
+
+  const rows = readChecks_();
+  const matches = rows
+    .filter(r => String(r.row[3] || '').trim() === checkNumber)
+    .map(r => rowToCheck_(r.row, r.rowIndex));
+  return { matches };
+}
+
+function updateCheck_(p) {
+  ensureSheets_();
+  const rowIndex = Number(p.rowIndex);
+  if (!rowIndex || rowIndex < 2) throw new Error('Invalid row index.');
+
+  const supplier = String(p.supplier || '').trim();
+  const bank = String(p.bank || '').trim();
+  const checkNumber = String(p.checkNumber || '').trim();
+  const checkDate = String(p.checkDate || '').trim();
+  const notes = String(p.notes || '').trim();
+  const amount = Number(String(p.amount || '').replace(/,/g, ''));
+
+  if (!supplier) throw new Error('Supplier is required.');
+  if (!bank) throw new Error('Bank is required.');
+  if (!checkNumber) throw new Error('Check number is required.');
+  if (!checkDate) throw new Error('Check date is required.');
+  if (!isFinite(amount) || amount <= 0) throw new Error('Amount must be a positive number.');
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const checks = ss.getSheetByName(SHEET_CHECKS);
+  if (rowIndex > checks.getLastRow()) throw new Error('Row no longer exists.');
+
+  addIfNew_(SHEET_SUPPLIERS, supplier);
+  addIfNew_(SHEET_BANKS, bank);
+
+  const originalTimestamp = checks.getRange(rowIndex, 1).getValue();
+  checks.getRange(rowIndex, 1, 1, CHECK_HEADERS.length).setValues([[
+    originalTimestamp || new Date(), supplier, checkDate, checkNumber, bank, amount, notes
+  ]]);
+  checks.getRange(rowIndex, 3).setNumberFormat('yyyy-mm-dd');
+  checks.getRange(rowIndex, 6).setNumberFormat('#,##0.00');
+
+  return { ok: true };
+}
+
+function searchChecks_(p) {
+  ensureSheets_();
+  const supplier = String(p.supplier || '').trim().toLowerCase();
+  const fromDate = String(p.from || '').trim();
+  const toDate = String(p.to || '').trim();
+
+  const rows = readChecks_();
+  const checks = rows.map(r => rowToCheck_(r.row, r.rowIndex)).filter(c => {
+    if (supplier && c.supplier.toLowerCase().indexOf(supplier) === -1) return false;
+    if (fromDate && c.checkDate < fromDate) return false;
+    if (toDate && c.checkDate > toDate) return false;
+    return true;
+  });
+  return { checks };
+}
+
+function readChecks_() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_CHECKS);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  const values = sheet.getRange(2, 1, lastRow - 1, CHECK_HEADERS.length).getValues();
+  return values.map((row, idx) => ({ row, rowIndex: idx + 2 }));
+}
+
+function rowToCheck_(row, rowIndex) {
+  return {
+    rowIndex,
+    timestamp: formatDate_(row[0]),
+    supplier: String(row[1] || ''),
+    checkDate: formatDate_(row[2]),
+    checkNumber: String(row[3] || ''),
+    bank: String(row[4] || ''),
+    amount: Number(row[5]) || 0,
+    notes: String(row[6] || '')
+  };
+}
+
+function formatDate_(v) {
+  if (v instanceof Date) {
+    const y = v.getFullYear();
+    const m = String(v.getMonth() + 1).padStart(2, '0');
+    const d = String(v.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  return String(v || '');
 }
 
 function ensureSheets_() {
