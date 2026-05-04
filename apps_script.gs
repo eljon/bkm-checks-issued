@@ -128,12 +128,14 @@ function updateCheck_(p) {
 function searchChecks_(p) {
   ensureSheets_();
   const supplier = String(p.supplier || '').trim().toLowerCase();
+  const bank = String(p.bank || '').trim().toLowerCase();
   const fromDate = String(p.from || '').trim();
   const toDate = String(p.to || '').trim();
 
   const rows = readChecks_();
   const checks = rows.map(r => rowToCheck_(r.row, r.rowIndex)).filter(c => {
     if (supplier && c.supplier.toLowerCase().indexOf(supplier) === -1) return false;
+    if (bank && c.bank.toLowerCase().indexOf(bank) === -1) return false;
     if (fromDate && c.checkDate < fromDate) return false;
     if (toDate && c.checkDate > toDate) return false;
     return true;
