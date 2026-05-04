@@ -133,6 +133,7 @@ function searchChecks_(p) {
   const bank = String(p.bank || '').trim().toLowerCase();
   const fromDate = String(p.from || '').trim();
   const toDate = String(p.to || '').trim();
+  const orderMonth = String(p.orderMonth || '').trim();
 
   const rows = readChecks_();
   const checks = rows.map(r => rowToCheck_(r.row, r.rowIndex)).filter(c => {
@@ -140,6 +141,7 @@ function searchChecks_(p) {
     if (bank && c.bank.toLowerCase().indexOf(bank) === -1) return false;
     if (fromDate && c.checkDate < fromDate) return false;
     if (toDate && c.checkDate > toDate) return false;
+    if (orderMonth && c.orderMonth !== orderMonth) return false;
     return true;
   });
   return { checks };
