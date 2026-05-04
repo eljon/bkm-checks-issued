@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title>BKM Checks Issued</title>
+  <style>
+    :root {
+      --bg: #f5f6f8;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #d1d5db;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --success: #059669;
+      --error: #dc2626;
+      --focus: #93c5fd;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 16px;
+    }
+
+    .container {
+      max-width: 520px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 20px;
+      margin: 8px 0 16px;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    .field {
+      margin-bottom: 14px;
+      position: relative;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+
+    label .opt {
+      color: var(--muted);
+      font-weight: 400;
+    }
+
+    input, textarea {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 16px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: white;
+      color: var(--text);
+      font-family: inherit;
+    }
+
+    input:focus, textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--focus);
+    }
+
+    textarea {
+      min-height: 70px;
+      resize: vertical;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      color: white;
+      background: var(--primary);
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: 6px;
+    }
+
+    button:hover:not(:disabled) { background: var(--primary-hover); }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .toast {
+      margin-top: 14px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      display: none;
+    }
+    .toast.show { display: block; }
+    .toast.success { background: #d1fae5; color: var(--success); }
+    .toast.error { background: #fee2e2; color: var(--error); }
+
+    .suggestions {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-top: 2px;
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 10;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.06);
+      display: none;
+    }
+    .suggestions.show { display: block; }
+
+    .suggestion {
+      padding: 10px 12px;
+      cursor: pointer;
+      font-size: 15px;
+    }
+    .suggestion:hover, .suggestion.active {
+      background: #eff6ff;
+    }
+    .suggestion .new-tag {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 2px 6px;
+      font-size: 11px;
+      background: var(--primary);
+      color: white;
+      border-radius: 4px;
+    }
+
+    .amount-wrap {
+      position: relative;
+    }
+    .amount-wrap .currency {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      font-size: 16px;
+      pointer-events: none;
+    }
+    .amount-wrap input {
+      padding-left: 36px;
+    }
+
+    .hint {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Record Check Issued</h1>
+    <div class="card">
+      <form id="checkForm" autocomplete="off">
+        <div class="field">
+          <label for="supplier">Supplier</label>
+          <input type="text" id="supplier" name="supplier" required>
+          <div class="suggestions" id="supplierSuggestions"></div>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="checkDate">Check Date</label>
+            <input type="date" id="checkDate" name="checkDate" required>
+          </div>
+          <div class="field">
+            <label for="checkNumber">Check Number</label>
+            <input type="text" id="checkNumber" name="checkNumber" inputmode="numeric" required>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="bank">Bank</label>
+          <input type="text" id="bank" name="bank" required>
+          <div class="suggestions" id="bankSuggestions"></div>
+        </div>
+
+        <div class="field">
+          <label for="amount">Amount</label>
+          <div class="amount-wrap">
+            <span class="currency">₱</span>
+            <input type="text" id="amount" name="amount" inputmode="decimal" placeholder="0.00" required>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="notes">Notes <span class="opt">(optional)</span></label>
+          <textarea id="notes" name="notes"></textarea>
+        </div>
+
+        <button type="submit" id="submitBtn">Save Check</button>
+        <div class="toast" id="toast"></div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      suppliers: [],
+      banks: []
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadLists();
+      attachAutocomplete('supplier', 'supplierSuggestions', () => state.suppliers);
+      attachAutocomplete('bank', 'bankSuggestions', () => state.banks);
+      attachAmountFormatter();
+      document.getElementById('checkForm').addEventListener('submit', onSubmit);
+    });
+
+    function loadLists() {
+      google.script.run
+        .withSuccessHandler(data => {
+          state.suppliers = data.suppliers || [];
+          state.banks = data.banks || [];
+        })
+        .withFailureHandler(err => console.error('Failed to load lists', err))
+        .getLists();
+    }
+
+    function attachAutocomplete(inputId, listId, getOptions) {
+      const input = document.getElementById(inputId);
+      const list = document.getElementById(listId);
+      let activeIndex = -1;
+
+      const render = () => {
+        const q = input.value.trim().toLowerCase();
+        const options = getOptions();
+        const matches = q
+          ? options.filter(o => o.toLowerCase().includes(q))
+          : options.slice();
+
+        const exact = options.some(o => o.toLowerCase() === q);
+        const items = matches.slice(0, 8).map(m => ({ label: m, isNew: false }));
+        if (q && !exact) items.unshift({ label: input.value.trim(), isNew: true });
+
+        if (!items.length) {
+          list.classList.remove('show');
+          list.innerHTML = '';
+          return;
+        }
+
+        list.innerHTML = items.map((it, i) =>
+          `<div class="suggestion${i === activeIndex ? ' active' : ''}" data-value="${escapeHtml(it.label)}">
+            ${escapeHtml(it.label)}${it.isNew ? '<span class="new-tag">NEW</span>' : ''}
+          </div>`
+        ).join('');
+        list.classList.add('show');
+
+        list.querySelectorAll('.suggestion').forEach(el => {
+          el.addEventListener('mousedown', e => {
+            e.preventDefault();
+            input.value = el.dataset.value;
+            list.classList.remove('show');
+          });
+        });
+      };
+
+      input.addEventListener('focus', () => { activeIndex = -1; render(); });
+      input.addEventListener('input', () => { activeIndex = -1; render(); });
+      input.addEventListener('blur', () => {
+        setTimeout(() => list.classList.remove('show'), 120);
+      });
+      input.addEventListener('keydown', e => {
+        const items = list.querySelectorAll('.suggestion');
+        if (!items.length) return;
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          activeIndex = (activeIndex + 1) % items.length;
+          render();
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          activeIndex = (activeIndex - 1 + items.length) % items.length;
+          render();
+        } else if (e.key === 'Enter' && activeIndex >= 0) {
+          e.preventDefault();
+          input.value = items[activeIndex].dataset.value;
+          list.classList.remove('show');
+        } else if (e.key === 'Escape') {
+          list.classList.remove('show');
+        }
+      });
+    }
+
+    function attachAmountFormatter() {
+      const input = document.getElementById('amount');
+      input.addEventListener('blur', () => {
+        const raw = input.value.replace(/,/g, '').trim();
+        if (!raw) return;
+        const n = Number(raw);
+        if (!isFinite(n)) return;
+        input.value = n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      });
+      input.addEventListener('focus', () => {
+        input.value = input.value.replace(/,/g, '');
+      });
+    }
+
+    function onSubmit(e) {
+      e.preventDefault();
+      const btn = document.getElementById('submitBtn');
+      const payload = {
+        supplier: document.getElementById('supplier').value.trim(),
+        checkDate: document.getElementById('checkDate').value,
+        checkNumber: document.getElementById('checkNumber').value.trim(),
+        bank: document.getElementById('bank').value.trim(),
+        amount: document.getElementById('amount').value.replace(/,/g, '').trim(),
+        notes: document.getElementById('notes').value.trim()
+      };
+
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+      hideToast();
+
+      google.script.run
+        .withSuccessHandler(() => {
+          showToast('Check saved.', 'success');
+          resetForm(payload);
+          loadLists();
+          btn.disabled = false;
+          btn.textContent = 'Save Check';
+        })
+        .withFailureHandler(err => {
+          showToast(err && err.message ? err.message : 'Save failed.', 'error');
+          btn.disabled = false;
+          btn.textContent = 'Save Check';
+        })
+        .saveCheck(payload);
+    }
+
+    function resetForm(last) {
+      document.getElementById('checkForm').reset();
+      if (last && last.checkDate) {
+        document.getElementById('checkDate').value = last.checkDate;
+      }
+      document.getElementById('supplier').focus();
+    }
+
+    function showToast(msg, kind) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = 'toast show ' + kind;
+      if (kind === 'success') {
+        setTimeout(hideToast, 3000);
+      }
+    }
+
+    function hideToast() {
+      document.getElementById('toast').className = 'toast';
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+    }
+  </script>
+</body>
+</html>
