@@ -174,6 +174,62 @@
       color: var(--muted);
       margin-top: 4px;
     }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 6px;
+    }
+    .actions .btn-secondary {
+      background: white;
+      color: var(--primary);
+      border: 1px solid var(--primary);
+    }
+    .actions .btn-secondary:hover:not(:disabled) {
+      background: #eff6ff;
+    }
+
+    /* ---------- Check print overlay ---------- */
+    /* Standard PH check stock: ~175mm x 75mm. Adjust the @page size and the
+       --check-* offsets below to match your bank's pre-printed check. */
+    :root {
+      --check-w: 175mm;
+      --check-h: 75mm;
+      --check-date-top: 8mm;
+      --check-date-right: 12mm;
+      --check-payee-top: 22mm;
+      --check-payee-left: 32mm;
+      --check-words-top: 32mm;
+      --check-words-left: 6mm;
+      --check-amount-top: 22mm;
+      --check-amount-right: 8mm;
+    }
+
+    .print-check {
+      display: none;
+      width: var(--check-w);
+      height: var(--check-h);
+      position: relative;
+      font-family: "Courier New", Courier, monospace;
+      color: #000;
+    }
+    .print-check .pc-field {
+      position: absolute;
+      white-space: nowrap;
+      font-size: 12pt;
+    }
+    .print-check .pc-date  { top: var(--check-date-top);  right: var(--check-date-right); letter-spacing: 2px; }
+    .print-check .pc-payee { top: var(--check-payee-top); left: var(--check-payee-left); }
+    .print-check .pc-words { top: var(--check-words-top); left: var(--check-words-left); right: 50mm; white-space: normal; }
+    .print-check .pc-amt   { top: var(--check-amount-top); right: var(--check-amount-right); font-weight: bold; }
+
+    @media print {
+      @page { size: 175mm 75mm; margin: 0; }
+      body { background: white; padding: 0; margin: 0; }
+      .container { display: none !important; }
+      .print-check { display: block !important; }
+    }
   </style>
 </head>
 <body>
@@ -217,10 +273,20 @@
           <textarea id="notes" name="notes"></textarea>
         </div>
 
-        <button type="submit" id="submitBtn">Save Check</button>
+        <div class="actions">
+          <button type="button" id="printBtn" class="btn-secondary">Print</button>
+          <button type="submit" id="submitBtn">Save Check</button>
+        </div>
         <div class="toast" id="toast"></div>
       </form>
     </div>
+  </div>
+
+  <div class="print-check" id="printCheck" aria-hidden="true">
+    <div class="pc-field pc-date"  id="pcDate"></div>
+    <div class="pc-field pc-payee" id="pcPayee"></div>
+    <div class="pc-field pc-words" id="pcWords"></div>
+    <div class="pc-field pc-amt"   id="pcAmt"></div>
   </div>
 
   <script>
@@ -235,7 +301,93 @@
       attachAutocomplete('bank', 'bankSuggestions', () => state.banks);
       attachAmountFormatter();
       document.getElementById('checkForm').addEventListener('submit', onSubmit);
+      document.getElementById('printBtn').addEventListener('click', onPrint);
     });
+
+    function onPrint() {
+      const payload = collectPayload();
+      const err = validate(payload);
+      if (err) { showToast(err, 'error'); return; }
+      fillCheck(payload);
+      window.print();
+    }
+
+    function collectPayload() {
+      return {
+        supplier: document.getElementById('supplier').value.trim(),
+        checkDate: document.getElementById('checkDate').value,
+        checkNumber: document.getElementById('checkNumber').value.trim(),
+        bank: document.getElementById('bank').value.trim(),
+        amount: document.getElementById('amount').value.replace(/,/g, '').trim(),
+        notes: document.getElementById('notes').value.trim()
+      };
+    }
+
+    function validate(p) {
+      if (!p.supplier) return 'Supplier is required.';
+      if (!p.checkDate) return 'Check date is required.';
+      if (!p.checkNumber) return 'Check number is required.';
+      if (!p.bank) return 'Bank is required.';
+      const n = Number(p.amount);
+      if (!isFinite(n) || n <= 0) return 'Amount must be a positive number.';
+      return null;
+    }
+
+    function fillCheck(p) {
+      const amt = Number(p.amount);
+      document.getElementById('pcDate').textContent = formatCheckDate(p.checkDate);
+      document.getElementById('pcPayee').textContent = p.supplier.toUpperCase();
+      document.getElementById('pcWords').textContent = pesoToWords(amt);
+      document.getElementById('pcAmt').textContent =
+        '**' + amt.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '**';
+    }
+
+    function formatCheckDate(iso) {
+      // ISO yyyy-mm-dd -> "MM  DD  YYYY" with spacing for boxed date area.
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+      if (!m) return iso;
+      return `${m[2]}  ${m[3]}  ${m[1]}`;
+    }
+
+    const ONES = ['','ONE','TWO','THREE','FOUR','FIVE','SIX','SEVEN','EIGHT','NINE',
+      'TEN','ELEVEN','TWELVE','THIRTEEN','FOURTEEN','FIFTEEN','SIXTEEN',
+      'SEVENTEEN','EIGHTEEN','NINETEEN'];
+    const TENS = ['','','TWENTY','THIRTY','FORTY','FIFTY','SIXTY','SEVENTY','EIGHTY','NINETY'];
+    const SCALES = ['','THOUSAND','MILLION','BILLION'];
+
+    function chunkToWords(n) {
+      const parts = [];
+      const h = Math.floor(n / 100);
+      const r = n % 100;
+      if (h) parts.push(ONES[h] + ' HUNDRED');
+      if (r < 20) {
+        if (r) parts.push(ONES[r]);
+      } else {
+        const t = Math.floor(r / 10), o = r % 10;
+        parts.push(o ? TENS[t] + '-' + ONES[o] : TENS[t]);
+      }
+      return parts.join(' ');
+    }
+
+    function intToWords(n) {
+      if (n === 0) return 'ZERO';
+      const out = [];
+      let i = 0;
+      while (n > 0) {
+        const c = n % 1000;
+        if (c) out.unshift(chunkToWords(c) + (SCALES[i] ? ' ' + SCALES[i] : ''));
+        n = Math.floor(n / 1000);
+        i++;
+      }
+      return out.join(' ').replace(/\s+/g, ' ').trim();
+    }
+
+    function pesoToWords(amount) {
+      const pesos = Math.floor(amount);
+      const cents = Math.round((amount - pesos) * 100);
+      const cc = String(cents).padStart(2, '0');
+      return `${intToWords(pesos)} PESOS AND ${cc}/100 ONLY`;
+    }
 
     function loadLists() {
       google.script.run
@@ -328,14 +480,9 @@
     function onSubmit(e) {
       e.preventDefault();
       const btn = document.getElementById('submitBtn');
-      const payload = {
-        supplier: document.getElementById('supplier').value.trim(),
-        checkDate: document.getElementById('checkDate').value,
-        checkNumber: document.getElementById('checkNumber').value.trim(),
-        bank: document.getElementById('bank').value.trim(),
-        amount: document.getElementById('amount').value.replace(/,/g, '').trim(),
-        notes: document.getElementById('notes').value.trim()
-      };
+      const payload = collectPayload();
+      const err = validate(payload);
+      if (err) { showToast(err, 'error'); return; }
 
       btn.disabled = true;
       btn.textContent = 'Saving...';

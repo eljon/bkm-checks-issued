@@ -13,6 +13,16 @@ and for searchable supplier and bank lists.
 - Amount (Philippine Peso)
 - Notes (optional)
 
+## Printing
+
+The **Print** button opens the browser print dialog with the form values laid
+out on a 175mm × 75mm page in standard Philippine check positions (date,
+payee in caps, amount in words with `XX/100 ONLY`, and amount in figures
+flanked by `**`). Print onto pre-printed check stock.
+
+If your bank's check uses different field positions or paper size, edit the
+`@page` size and the `--check-*` CSS variables at the top of `Index.html`.
+
 ## Files
 
 - `Code.gs` — Google Apps Script backend (sheet I/O, validation)
