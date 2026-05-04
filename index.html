@@ -225,9 +225,10 @@
           <textarea id="notes" name="notes"></textarea>
         </div>
 
+        <button type="button" id="printSaveBtn">Print &amp; Save</button>
         <div class="actions">
-          <button type="button" id="printBtn" class="btn-secondary">Save &amp; Print</button>
-          <button type="submit" id="submitBtn">Save Only</button>
+          <button type="button" id="printBtn" class="btn-secondary">Print Only</button>
+          <button type="submit" id="submitBtn" class="btn-secondary">Save Only</button>
         </div>
         <div class="toast" id="toast"></div>
       </form>
@@ -255,6 +256,7 @@
       attachAmountFormatter();
       document.getElementById('checkForm').addEventListener('submit', onSubmit);
       document.getElementById('printBtn').addEventListener('click', onPrint);
+      document.getElementById('printSaveBtn').addEventListener('click', onPrintSave);
 
       try {
         await loadLists();
@@ -293,8 +295,16 @@
 
     // ---------- Print ----------
 
-    async function onPrint() {
-      const btn = document.getElementById('printBtn');
+    function onPrint() {
+      const payload = collectPayload();
+      const err = validate(payload);
+      if (err) { showToast(err, 'error'); return; }
+      fillCheck(payload);
+      window.print();
+    }
+
+    async function onPrintSave() {
+      const btn = document.getElementById('printSaveBtn');
       const payload = collectPayload();
       const err = validate(payload);
       if (err) { showToast(err, 'error'); return; }
@@ -314,7 +324,7 @@
         showToast(err.message || 'Save failed.', 'error');
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Save & Print';
+        btn.textContent = 'Print & Save';
       }
     }
 
