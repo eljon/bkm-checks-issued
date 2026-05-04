@@ -299,15 +299,44 @@
       border: 1px solid var(--primary);
     }
 
+    /* ---------- Modal ---------- */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 16px;
+    }
+    .modal {
+      background: white;
+      border-radius: 10px;
+      padding: 22px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    }
+    .modal h3 {
+      margin: 0 0 14px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
     /* ---------- Print Report (printed) ---------- */
     .print-report {
       display: none;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       color: #000;
     }
-    .print-report .report-header h1 {
-      font-size: 18pt;
-      margin: 0 0 18px;
+    .print-report .report-payment-range {
+      font-size: 12pt;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+    .print-report .report-payment-range:empty {
+      display: none;
     }
     .print-report .report-to {
       font-size: 12pt;
@@ -574,6 +603,16 @@
             <input type="text" id="rBank">
             <div class="suggestions" id="rBankSuggestions"></div>
           </div>
+          <div class="row">
+            <div class="field">
+              <label for="rFrom">From <span class="opt">(optional)</span></label>
+              <input type="date" id="rFrom">
+            </div>
+            <div class="field">
+              <label for="rTo">To <span class="opt">(optional)</span></label>
+              <input type="date" id="rTo">
+            </div>
+          </div>
           <button type="submit" id="rSearchBtn">Search</button>
           <div class="toast" id="reportToast"></div>
         </form>
@@ -591,7 +630,7 @@
 
   <div class="print-report" id="printReport" aria-hidden="true">
     <div class="report-header">
-      <h1>BKM Checks Issued</h1>
+      <div class="report-payment-range" id="prPaymentRange"></div>
       <div class="report-to">To: <strong id="prSupplier"></strong></div>
     </div>
     <table class="report-table">
@@ -614,6 +653,20 @@
     <div class="report-signature">
       <div class="sig-line">Received by: <span class="line"></span></div>
       <div class="sig-line">Date: <span class="line"></span></div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="paymentRangeModal" aria-hidden="true">
+    <div class="modal" role="dialog" aria-labelledby="prModalTitle">
+      <h3 id="prModalTitle">Payment Range</h3>
+      <div class="field">
+        <label for="prRangeInput">Range to print on the report</label>
+        <input type="text" id="prRangeInput" placeholder="e.g. January 1-31, 2026">
+      </div>
+      <div class="actions">
+        <button type="button" class="btn-secondary" data-modal="cancel">Cancel</button>
+        <button type="button" data-modal="confirm">Print</button>
+      </div>
     </div>
   </div>
 
@@ -1168,6 +1221,8 @@
       e.preventDefault();
       const supplier = document.getElementById('rSupplier').value.trim();
       const bank = document.getElementById('rBank').value.trim();
+      const from = document.getElementById('rFrom').value;
+      const to = document.getElementById('rTo').value;
 
       const btn = document.getElementById('rSearchBtn');
       btn.disabled = true; btn.textContent = 'Searching...';
@@ -1175,7 +1230,7 @@
       document.getElementById('rResults').innerHTML = '';
 
       try {
-        const data = await api('searchChecks', { supplier, bank });
+        const data = await api('searchChecks', { supplier, bank, from, to });
         state.reportChecks = (data.checks || []).slice().sort((a, b) =>
           (a.checkDate || '').localeCompare(b.checkDate || '')
         );
@@ -1251,11 +1306,50 @@
         return;
       }
       const supplier = document.getElementById('rSupplier').value.trim();
-      fillReport(supplier, selected);
-      printReport();
+
+      askPaymentRange(paymentRange => {
+        fillReport(supplier, selected, paymentRange);
+        printReport();
+      });
     }
 
-    function fillReport(supplier, checks) {
+    function askPaymentRange(onConfirm) {
+      const modal = document.getElementById('paymentRangeModal');
+      const input = document.getElementById('prRangeInput');
+      const confirmBtn = modal.querySelector('[data-modal="confirm"]');
+      const cancelBtn = modal.querySelector('[data-modal="cancel"]');
+
+      const from = document.getElementById('rFrom').value;
+      const to = document.getElementById('rTo').value;
+      input.value = (from && to) ? (from + ' to ' + to) : (from || to || '');
+
+      modal.classList.remove('hidden');
+      setTimeout(() => { input.focus(); input.select(); }, 0);
+
+      const cleanup = () => {
+        modal.classList.add('hidden');
+        confirmBtn.removeEventListener('click', confirm);
+        cancelBtn.removeEventListener('click', cancel);
+        input.removeEventListener('keydown', onKey);
+        modal.removeEventListener('mousedown', onBackdrop);
+      };
+      const confirm = () => { const v = input.value.trim(); cleanup(); onConfirm(v); };
+      const cancel = () => { cleanup(); };
+      const onKey = (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); confirm(); }
+        else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+      };
+      const onBackdrop = (e) => { if (e.target === modal) cancel(); };
+
+      confirmBtn.addEventListener('click', confirm);
+      cancelBtn.addEventListener('click', cancel);
+      input.addEventListener('keydown', onKey);
+      modal.addEventListener('mousedown', onBackdrop);
+    }
+
+    function fillReport(supplier, checks, paymentRange) {
+      const rangeEl = document.getElementById('prPaymentRange');
+      rangeEl.textContent = paymentRange ? ('Payment Range: ' + paymentRange) : '';
       document.getElementById('prSupplier').textContent = supplier || '____________________';
       const tbody = document.getElementById('prTbody');
       tbody.innerHTML = checks.map(c => `
