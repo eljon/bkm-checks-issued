@@ -188,6 +188,12 @@ function formatDate_(v) {
   return String(v || '');
 }
 
+// Bump SCHEMA_VERSION whenever migrateChecksHeader_ needs to re-run on
+// existing spreadsheets. Each version runs the migration once per Sheet
+// (tracked in document properties) and then short-circuits on every
+// subsequent call so doPost stays fast.
+const SCHEMA_VERSION = 'v2';
+
 function ensureSheets_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
@@ -196,12 +202,10 @@ function ensureSheets_() {
     checks = ss.insertSheet(SHEET_CHECKS);
     checks.getRange(1, 1, 1, CHECK_HEADERS.length).setValues([CHECK_HEADERS]).setFontWeight('bold');
     checks.setFrozenRows(1);
-  } else {
-    migrateChecksHeader_(checks);
+    // Order Month is stored as text — Sheets otherwise parses "YYYY-MM" as a date.
+    checks.getRange('C:C').setNumberFormat('@');
   }
-
-  // Order Month is stored as text — Sheets otherwise parses "YYYY-MM" as a date.
-  checks.getRange('C:C').setNumberFormat('@');
+  runMigrationsIfNeeded_(checks);
 
   if (!ss.getSheetByName(SHEET_SUPPLIERS)) {
     const s = ss.insertSheet(SHEET_SUPPLIERS);
@@ -214,6 +218,13 @@ function ensureSheets_() {
     b.getRange(1, 1).setValue('Bank').setFontWeight('bold');
     b.setFrozenRows(1);
   }
+}
+
+function runMigrationsIfNeeded_(checks) {
+  const props = PropertiesService.getDocumentProperties();
+  if (props.getProperty('schema_version') === SCHEMA_VERSION) return;
+  migrateChecksHeader_(checks);
+  props.setProperty('schema_version', SCHEMA_VERSION);
 }
 
 function migrateChecksHeader_(checks) {
