@@ -515,6 +515,11 @@
           </div>
 
           <div class="field">
+            <label for="orderMonth">Order Month <span class="opt">(optional)</span></label>
+            <input type="month" id="orderMonth">
+          </div>
+
+          <div class="field">
             <label for="bank">Bank</label>
             <input type="text" id="bank" required>
             <div class="suggestions" id="bankSuggestions"></div>
@@ -826,6 +831,7 @@
     function collectEnterPayload() {
       return {
         supplier: document.getElementById('supplier').value.trim(),
+        orderMonth: document.getElementById('orderMonth').value,
         checkDate: document.getElementById('checkDate').value,
         checkNumber: document.getElementById('checkNumber').value.trim(),
         bank: document.getElementById('bank').value.trim(),
@@ -898,6 +904,7 @@
     function resetEnterForm(last) {
       document.getElementById('checkForm').reset();
       if (last && last.checkDate) document.getElementById('checkDate').value = last.checkDate;
+      if (last && last.orderMonth) document.getElementById('orderMonth').value = last.orderMonth;
       document.getElementById('supplier').focus();
     }
 
@@ -943,6 +950,7 @@
     function renderViewCard(c, i) {
       return `<div class="card" data-row="${c.rowIndex}">
         <div class="check-row"><span class="lbl">Supplier</span><span class="val">${escapeHtml(c.supplier)}</span></div>
+        <div class="check-row"><span class="lbl">Order Month</span><span class="val">${escapeHtml(formatOrderMonth(c.orderMonth) || '—')}</span></div>
         <div class="check-row"><span class="lbl">Check Date</span><span class="val">${escapeHtml(c.checkDate)}</span></div>
         <div class="check-row"><span class="lbl">Check #</span><span class="val">${escapeHtml(c.checkNumber)}</span></div>
         <div class="check-row"><span class="lbl">Bank</span><span class="val">${escapeHtml(c.bank)}</span></div>
@@ -953,6 +961,15 @@
           <button type="button" class="btn-secondary" data-action="print" data-i="${i}">Print</button>
         </div>
       </div>`;
+    }
+
+    function formatOrderMonth(s) {
+      if (!s) return '';
+      const m = /^(\d{4})-(\d{2})$/.exec(s);
+      if (!m) return s;
+      const months = ['January','February','March','April','May','June',
+        'July','August','September','October','November','December'];
+      return months[parseInt(m[2], 10) - 1] + ' ' + m[1];
     }
 
     function renderEditCard(c, i) {
@@ -970,6 +987,10 @@
             <label>Check Number</label>
             <input type="text" data-edit="checkNumber" inputmode="numeric" value="${escapeAttr(c.checkNumber)}" required>
           </div>
+        </div>
+        <div class="field">
+          <label>Order Month <span class="opt">(optional)</span></label>
+          <input type="month" data-edit="orderMonth" value="${escapeAttr(c.orderMonth || '')}">
         </div>
         <div class="field">
           <label>Bank</label>
@@ -1023,6 +1044,7 @@
       const payload = {
         rowIndex: state.viewerMatches[i].rowIndex,
         supplier: card.querySelector('[data-edit="supplier"]').value.trim(),
+        orderMonth: card.querySelector('[data-edit="orderMonth"]').value,
         checkDate: card.querySelector('[data-edit="checkDate"]').value,
         checkNumber: card.querySelector('[data-edit="checkNumber"]').value.trim(),
         bank: card.querySelector('[data-edit="bank"]').value.trim(),
@@ -1038,6 +1060,7 @@
         await api('updateCheck', payload);
         Object.assign(state.viewerMatches[i], {
           supplier: payload.supplier,
+          orderMonth: payload.orderMonth,
           checkDate: payload.checkDate,
           checkNumber: payload.checkNumber,
           bank: payload.bank,
@@ -1061,6 +1084,7 @@
       if (editing) {
         p = {
           supplier: card.querySelector('[data-edit="supplier"]').value.trim(),
+          orderMonth: card.querySelector('[data-edit="orderMonth"]').value,
           checkDate: card.querySelector('[data-edit="checkDate"]').value,
           checkNumber: card.querySelector('[data-edit="checkNumber"]').value.trim(),
           bank: card.querySelector('[data-edit="bank"]').value.trim(),

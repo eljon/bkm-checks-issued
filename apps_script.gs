@@ -13,7 +13,7 @@ const SHARED_SECRET = '';
 const SHEET_CHECKS = 'Checks';
 const SHEET_SUPPLIERS = 'Suppliers';
 const SHEET_BANKS = 'Banks';
-const CHECK_HEADERS = ['Timestamp', 'Supplier', 'Check Date', 'Check Number', 'Bank', 'Amount', 'Notes'];
+const CHECK_HEADERS = ['Timestamp', 'Supplier', 'Order Month', 'Check Date', 'Check Number', 'Bank', 'Amount', 'Notes'];
 
 function doGet() {
   return json({ ok: true, message: 'BKM Checks API. POST JSON to use.' });
@@ -50,6 +50,7 @@ function saveCheck_(p) {
   ensureSheets_();
 
   const supplier = String(p.supplier || '').trim();
+  const orderMonth = String(p.orderMonth || '').trim();
   const bank = String(p.bank || '').trim();
   const checkNumber = String(p.checkNumber || '').trim();
   const checkDate = String(p.checkDate || '').trim();
@@ -70,10 +71,10 @@ function saveCheck_(p) {
 
   const row = checks.getLastRow() + 1;
   checks.getRange(row, 1, 1, CHECK_HEADERS.length).setValues([[
-    new Date(), supplier, checkDate, checkNumber, bank, amount, notes
+    new Date(), supplier, orderMonth, checkDate, checkNumber, bank, amount, notes
   ]]);
-  checks.getRange(row, 3).setNumberFormat('yyyy-mm-dd');
-  checks.getRange(row, 6).setNumberFormat('#,##0.00');
+  checks.getRange(row, 4).setNumberFormat('yyyy-mm-dd');
+  checks.getRange(row, 7).setNumberFormat('#,##0.00');
 
   return { ok: true };
 }
@@ -85,7 +86,7 @@ function findChecks_(p) {
 
   const rows = readChecks_();
   const matches = rows
-    .filter(r => String(r.row[3] || '').trim() === checkNumber)
+    .filter(r => String(r.row[4] || '').trim() === checkNumber)
     .map(r => rowToCheck_(r.row, r.rowIndex));
   return { matches };
 }
@@ -96,6 +97,7 @@ function updateCheck_(p) {
   if (!rowIndex || rowIndex < 2) throw new Error('Invalid row index.');
 
   const supplier = String(p.supplier || '').trim();
+  const orderMonth = String(p.orderMonth || '').trim();
   const bank = String(p.bank || '').trim();
   const checkNumber = String(p.checkNumber || '').trim();
   const checkDate = String(p.checkDate || '').trim();
@@ -117,10 +119,10 @@ function updateCheck_(p) {
 
   const originalTimestamp = checks.getRange(rowIndex, 1).getValue();
   checks.getRange(rowIndex, 1, 1, CHECK_HEADERS.length).setValues([[
-    originalTimestamp || new Date(), supplier, checkDate, checkNumber, bank, amount, notes
+    originalTimestamp || new Date(), supplier, orderMonth, checkDate, checkNumber, bank, amount, notes
   ]]);
-  checks.getRange(rowIndex, 3).setNumberFormat('yyyy-mm-dd');
-  checks.getRange(rowIndex, 6).setNumberFormat('#,##0.00');
+  checks.getRange(rowIndex, 4).setNumberFormat('yyyy-mm-dd');
+  checks.getRange(rowIndex, 7).setNumberFormat('#,##0.00');
 
   return { ok: true };
 }
@@ -156,11 +158,12 @@ function rowToCheck_(row, rowIndex) {
     rowIndex,
     timestamp: formatDate_(row[0]),
     supplier: String(row[1] || ''),
-    checkDate: formatDate_(row[2]),
-    checkNumber: String(row[3] || ''),
-    bank: String(row[4] || ''),
-    amount: Number(row[5]) || 0,
-    notes: String(row[6] || '')
+    orderMonth: String(row[2] || ''),
+    checkDate: formatDate_(row[3]),
+    checkNumber: String(row[4] || ''),
+    bank: String(row[5] || ''),
+    amount: Number(row[6]) || 0,
+    notes: String(row[7] || '')
   };
 }
 
@@ -182,6 +185,8 @@ function ensureSheets_() {
     checks = ss.insertSheet(SHEET_CHECKS);
     checks.getRange(1, 1, 1, CHECK_HEADERS.length).setValues([CHECK_HEADERS]).setFontWeight('bold');
     checks.setFrozenRows(1);
+  } else {
+    migrateChecksHeader_(checks);
   }
 
   if (!ss.getSheetByName(SHEET_SUPPLIERS)) {
@@ -195,6 +200,20 @@ function ensureSheets_() {
     b.getRange(1, 1).setValue('Bank').setFontWeight('bold');
     b.setFrozenRows(1);
   }
+}
+
+function migrateChecksHeader_(checks) {
+  const lastCol = Math.max(checks.getLastColumn(), 1);
+  const header = checks.getRange(1, 1, 1, lastCol).getValues()[0];
+  if (header.indexOf('Order Month') === -1) {
+    // Insert empty Order Month column right after Supplier (column 2).
+    checks.insertColumnAfter(2);
+    checks.getRange(1, 3).setValue('Order Month').setFontWeight('bold');
+  }
+  // Sync the header row with the canonical headers in case anything drifted.
+  checks.getRange(1, 1, 1, CHECK_HEADERS.length)
+    .setValues([CHECK_HEADERS])
+    .setFontWeight('bold');
 }
 
 function getColumn_(sheetName) {
