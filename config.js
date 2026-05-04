@@ -5,6 +5,6 @@
 //   secret   - Optional. If you set SHARED_SECRET in apps_script.gs, put the
 //              same value here. Leave as '' if you didn't set one.
 window.APP_CONFIG = {
-  apiUrl: 'PUT_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE',
+  apiUrl: 'https://script.google.com/macros/s/AKfycbw7gZO3-xG03sQfBKdN9zEdlopthvbk0M_zIEPh4yScUtph8M-fKtJsUQJSOeQmp_z3/exec',
   secret: ''
 };
