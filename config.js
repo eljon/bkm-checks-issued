@@ -1,11 +1,10 @@
-// Edit these two values, then commit. The app reads them at runtime.
+// Edit these values, then commit. The app reads them at runtime.
 //
-//   spreadsheetId  - The "/d/<ID>/edit" portion of your Google Sheet URL.
-//   oauthClientId  - OAuth 2.0 Web Client ID from Google Cloud Console.
-//                    Authorized JavaScript origin must match where you serve
-//                    this app from (e.g. http://localhost:8000 for local
-//                    testing, or https://<user>.github.io for GitHub Pages).
+//   apiUrl   - The Web App URL from your Apps Script deployment.
+//              Looks like: https://script.google.com/macros/s/AKfyc.../exec
+//   secret   - Optional. If you set SHARED_SECRET in apps_script.gs, put the
+//              same value here. Leave as '' if you didn't set one.
 window.APP_CONFIG = {
-  spreadsheetId: 'PUT_YOUR_SHEET_ID_HERE',
-  oauthClientId: 'PUT_YOUR_OAUTH_CLIENT_ID_HERE.apps.googleusercontent.com'
+  apiUrl: 'PUT_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE',
+  secret: ''
 };

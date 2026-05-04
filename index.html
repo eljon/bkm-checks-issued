@@ -142,24 +142,6 @@
     }
     .actions .btn-secondary:hover:not(:disabled) { background: #eff6ff; }
 
-    .header-bar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin: 8px 0 16px;
-    }
-    .who { font-size: 13px; color: var(--muted); }
-    .link-btn {
-      background: none; border: none; padding: 0;
-      color: var(--primary); cursor: pointer;
-      font-size: 13px; font-weight: 500; width: auto;
-      margin: 0;
-    }
-    .link-btn:hover { text-decoration: underline; background: none; }
-
-    .signin-card { text-align: center; }
-    .signin-card p { color: var(--muted); margin: 0 0 16px; font-size: 14px; }
-
     /* ---------- Check print overlay ---------- */
     /* PH check stock: ~175mm x 75mm. Tweak --check-* offsets to match your bank. */
     :root {
@@ -199,30 +181,13 @@
       .container { display: none !important; }
       .print-check { display: block !important; }
     }
-
-    .hidden { display: none !important; }
   </style>
   <script src="config.js"></script>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
   <div class="container">
-    <div class="header-bar">
-      <h1 style="margin:0;">Record Check Issued</h1>
-      <div id="userInfo" class="who hidden">
-        <span id="userEmail"></span>
-        &nbsp;·&nbsp;
-        <button type="button" class="link-btn" id="signOutBtn">Sign out</button>
-      </div>
-    </div>
-
-    <div class="card signin-card" id="signinCard">
-      <p>Sign in with the Google account that owns the spreadsheet.</p>
-      <button type="button" id="signInBtn">Sign in with Google</button>
-      <div class="toast" id="signinToast"></div>
-    </div>
-
-    <div class="card hidden" id="formCard">
+    <h1>Record Check Issued</h1>
+    <div class="card">
       <form id="checkForm" autocomplete="off">
         <div class="field">
           <label for="supplier">Supplier</label>
@@ -277,25 +242,11 @@
   </div>
 
   <script>
-    const SHEET_CHECKS = 'Checks';
-    const SHEET_SUPPLIERS = 'Suppliers';
-    const SHEET_BANKS = 'Banks';
-    const CHECK_HEADERS = ['Timestamp', 'Supplier', 'Check Date', 'Check Number', 'Bank', 'Amount', 'Notes'];
-    const SCOPE = 'https://www.googleapis.com/auth/spreadsheets';
+    const state = { suppliers: [], banks: [] };
 
-    const state = {
-      suppliers: [],
-      banks: [],
-      token: null,
-      tokenExpiresAt: 0,
-      tokenClient: null,
-      ensuredSheets: false
-    };
-
-    document.addEventListener('DOMContentLoaded', () => {
-      if (!window.APP_CONFIG || !APP_CONFIG.spreadsheetId || APP_CONFIG.spreadsheetId.startsWith('PUT_')) {
-        showSigninToast('Edit config.js with your spreadsheetId and oauthClientId before using the app.', 'error');
-        document.getElementById('signInBtn').disabled = true;
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!window.APP_CONFIG || !APP_CONFIG.apiUrl || APP_CONFIG.apiUrl.startsWith('PUT_')) {
+        showToast('Edit config.js with your Apps Script Web App URL.', 'error');
         return;
       }
 
@@ -304,231 +255,43 @@
       attachAmountFormatter();
       document.getElementById('checkForm').addEventListener('submit', onSubmit);
       document.getElementById('printBtn').addEventListener('click', onPrint);
-      document.getElementById('signInBtn').addEventListener('click', signIn);
-      document.getElementById('signOutBtn').addEventListener('click', signOut);
-
-      waitForGsi().then(initTokenClient).catch(err => {
-        showSigninToast('Failed to load Google sign-in: ' + err.message, 'error');
-      });
-    });
-
-    function waitForGsi() {
-      return new Promise((resolve, reject) => {
-        const start = Date.now();
-        (function check() {
-          if (window.google && google.accounts && google.accounts.oauth2) return resolve();
-          if (Date.now() - start > 8000) return reject(new Error('timed out'));
-          setTimeout(check, 100);
-        })();
-      });
-    }
-
-    function initTokenClient() {
-      state.tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: APP_CONFIG.oauthClientId,
-        scope: SCOPE,
-        callback: handleTokenResponse
-      });
-
-      const cached = sessionStorage.getItem('bkm_token');
-      if (cached) {
-        try {
-          const t = JSON.parse(cached);
-          if (t.expires_at > Date.now() + 30000) {
-            state.token = t.access_token;
-            state.tokenExpiresAt = t.expires_at;
-            state.userEmail = t.email || '';
-            onSignedIn();
-            return;
-          }
-        } catch (_) {}
-      }
-    }
-
-    function signIn() {
-      if (!state.tokenClient) return;
-      state.tokenClient.requestAccessToken({ prompt: 'consent' });
-    }
-
-    function signOut() {
-      if (state.token) {
-        google.accounts.oauth2.revoke(state.token, () => {});
-      }
-      state.token = null;
-      state.tokenExpiresAt = 0;
-      sessionStorage.removeItem('bkm_token');
-      document.getElementById('formCard').classList.add('hidden');
-      document.getElementById('userInfo').classList.add('hidden');
-      document.getElementById('signinCard').classList.remove('hidden');
-    }
-
-    async function handleTokenResponse(resp) {
-      if (resp.error) {
-        showSigninToast(resp.error_description || resp.error, 'error');
-        return;
-      }
-      state.token = resp.access_token;
-      state.tokenExpiresAt = Date.now() + (Number(resp.expires_in) || 3600) * 1000;
 
       try {
-        const profile = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-          headers: { Authorization: 'Bearer ' + state.token }
-        }).then(r => r.ok ? r.json() : {});
-        state.userEmail = profile.email || '';
-      } catch (_) { state.userEmail = ''; }
-
-      sessionStorage.setItem('bkm_token', JSON.stringify({
-        access_token: state.token,
-        expires_at: state.tokenExpiresAt,
-        email: state.userEmail
-      }));
-
-      onSignedIn();
-    }
-
-    async function ensureFreshToken() {
-      if (state.token && Date.now() < state.tokenExpiresAt - 30000) return;
-      return new Promise((resolve, reject) => {
-        const cb = state.tokenClient.callback;
-        state.tokenClient.callback = (resp) => {
-          state.tokenClient.callback = cb;
-          if (resp.error) { reject(new Error(resp.error)); return; }
-          handleTokenResponse(resp).then(resolve, reject);
-        };
-        state.tokenClient.requestAccessToken({ prompt: '' });
-      });
-    }
-
-    async function onSignedIn() {
-      document.getElementById('signinCard').classList.add('hidden');
-      document.getElementById('formCard').classList.remove('hidden');
-      document.getElementById('userInfo').classList.remove('hidden');
-      document.getElementById('userEmail').textContent = state.userEmail || 'Signed in';
-      try {
-        await ensureSheetsExist();
         await loadLists();
       } catch (err) {
-        showToast('Setup failed: ' + err.message, 'error');
+        showToast('Could not load lists: ' + err.message, 'error');
       }
-    }
+    });
 
-    // ---------- Sheets API helpers ----------
+    // ---------- API ----------
 
-    async function sheetsFetch(path, init) {
-      await ensureFreshToken();
-      const url = 'https://sheets.googleapis.com/v4/spreadsheets/' + APP_CONFIG.spreadsheetId + path;
-      const opts = init || {};
-      opts.headers = Object.assign({}, opts.headers || {}, {
-        Authorization: 'Bearer ' + state.token,
-        'Content-Type': 'application/json'
+    async function api(action, payload) {
+      // text/plain avoids the CORS preflight that Apps Script doesn't handle.
+      const resp = await fetch(APP_CONFIG.apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action, payload, secret: APP_CONFIG.secret || '' }),
+        redirect: 'follow'
       });
-      const resp = await fetch(url, opts);
-      if (!resp.ok) {
-        let detail = '';
-        try { detail = (await resp.json()).error.message; } catch (_) {}
-        throw new Error(detail || ('HTTP ' + resp.status));
-      }
-      return resp.json();
-    }
-
-    async function ensureSheetsExist() {
-      if (state.ensuredSheets) return;
-      const meta = await sheetsFetch('?fields=sheets.properties.title');
-      const have = new Set((meta.sheets || []).map(s => s.properties.title));
-      const requests = [];
-      [SHEET_CHECKS, SHEET_SUPPLIERS, SHEET_BANKS].forEach(t => {
-        if (!have.has(t)) requests.push({ addSheet: { properties: { title: t } } });
-      });
-      if (requests.length) {
-        await sheetsFetch(':batchUpdate', {
-          method: 'POST',
-          body: JSON.stringify({ requests })
-        });
-      }
-
-      await ensureHeader(SHEET_CHECKS, CHECK_HEADERS);
-      await ensureHeader(SHEET_SUPPLIERS, ['Supplier']);
-      await ensureHeader(SHEET_BANKS, ['Bank']);
-      state.ensuredSheets = true;
-    }
-
-    async function ensureHeader(sheet, headers) {
-      const range = `${sheet}!A1:${columnLetter(headers.length)}1`;
-      const resp = await sheetsFetch('/values/' + encodeURIComponent(range));
-      const have = (resp.values && resp.values[0]) || [];
-      const matches = have.length === headers.length && headers.every((h, i) => have[i] === h);
-      if (matches) return;
-      await sheetsFetch('/values/' + encodeURIComponent(range) + '?valueInputOption=RAW', {
-        method: 'PUT',
-        body: JSON.stringify({ values: [headers] })
-      });
-    }
-
-    function columnLetter(n) {
-      let s = '';
-      while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
-      return s;
-    }
-
-    async function getColumn(sheet) {
-      const resp = await sheetsFetch('/values/' + encodeURIComponent(sheet + '!A2:A'));
-      const rows = resp.values || [];
-      const seen = new Set(), out = [];
-      rows.forEach(r => {
-        const v = String(r[0] || '').trim();
-        if (!v) return;
-        const k = v.toLowerCase();
-        if (seen.has(k)) return;
-        seen.add(k);
-        out.push(v);
-      });
-      out.sort((a, b) => a.localeCompare(b));
-      return out;
-    }
-
-    async function appendRow(sheet, row) {
-      const range = sheet + '!A:A';
-      await sheetsFetch(
-        '/values/' + encodeURIComponent(range) +
-        ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS',
-        { method: 'POST', body: JSON.stringify({ values: [row] }) }
-      );
+      const text = await resp.text();
+      let data;
+      try { data = JSON.parse(text); }
+      catch (_) { throw new Error('Bad response: ' + text.slice(0, 200)); }
+      if (data.error) throw new Error(data.error);
+      return data;
     }
 
     async function loadLists() {
-      const [suppliers, banks] = await Promise.all([
-        getColumn(SHEET_SUPPLIERS),
-        getColumn(SHEET_BANKS)
-      ]);
-      state.suppliers = suppliers;
-      state.banks = banks;
+      const data = await api('getLists');
+      state.suppliers = data.suppliers || [];
+      state.banks = data.banks || [];
     }
 
-    async function saveCheck(p) {
-      await ensureSheetsExist();
-      const amount = Number(p.amount);
-      const existingSuppliers = state.suppliers.map(s => s.toLowerCase());
-      const existingBanks = state.banks.map(s => s.toLowerCase());
-
-      await appendRow(SHEET_CHECKS, [
-        new Date().toISOString(),
-        p.supplier,
-        p.checkDate,
-        p.checkNumber,
-        p.bank,
-        amount,
-        p.notes
-      ]);
-
-      if (!existingSuppliers.includes(p.supplier.toLowerCase())) {
-        await appendRow(SHEET_SUPPLIERS, [p.supplier]);
-      }
-      if (!existingBanks.includes(p.bank.toLowerCase())) {
-        await appendRow(SHEET_BANKS, [p.bank]);
-      }
+    async function saveCheck(payload) {
+      await api('saveCheck', payload);
     }
 
-    // ---------- Form / UI ----------
+    // ---------- Print ----------
 
     function onPrint() {
       const payload = collectPayload();
@@ -536,27 +299,6 @@
       if (err) { showToast(err, 'error'); return; }
       fillCheck(payload);
       window.print();
-    }
-
-    function collectPayload() {
-      return {
-        supplier: document.getElementById('supplier').value.trim(),
-        checkDate: document.getElementById('checkDate').value,
-        checkNumber: document.getElementById('checkNumber').value.trim(),
-        bank: document.getElementById('bank').value.trim(),
-        amount: document.getElementById('amount').value.replace(/,/g, '').trim(),
-        notes: document.getElementById('notes').value.trim()
-      };
-    }
-
-    function validate(p) {
-      if (!p.supplier) return 'Supplier is required.';
-      if (!p.checkDate) return 'Check date is required.';
-      if (!p.checkNumber) return 'Check number is required.';
-      if (!p.bank) return 'Bank is required.';
-      const n = Number(p.amount);
-      if (!isFinite(n) || n <= 0) return 'Amount must be a positive number.';
-      return null;
     }
 
     function fillCheck(p) {
@@ -612,6 +354,29 @@
       const cents = Math.round((amount - pesos) * 100);
       const cc = String(cents).padStart(2, '0');
       return `${intToWords(pesos)} PESOS AND ${cc}/100 ONLY`;
+    }
+
+    // ---------- Form ----------
+
+    function collectPayload() {
+      return {
+        supplier: document.getElementById('supplier').value.trim(),
+        checkDate: document.getElementById('checkDate').value,
+        checkNumber: document.getElementById('checkNumber').value.trim(),
+        bank: document.getElementById('bank').value.trim(),
+        amount: document.getElementById('amount').value.replace(/,/g, '').trim(),
+        notes: document.getElementById('notes').value.trim()
+      };
+    }
+
+    function validate(p) {
+      if (!p.supplier) return 'Supplier is required.';
+      if (!p.checkDate) return 'Check date is required.';
+      if (!p.checkNumber) return 'Check number is required.';
+      if (!p.bank) return 'Bank is required.';
+      const n = Number(p.amount);
+      if (!isFinite(n) || n <= 0) return 'Amount must be a positive number.';
+      return null;
     }
 
     function attachAutocomplete(inputId, listId, getOptions) {
@@ -718,12 +483,6 @@
       if (kind === 'success') setTimeout(hideToast, 3000);
     }
     function hideToast() { document.getElementById('toast').className = 'toast'; }
-
-    function showSigninToast(msg, kind) {
-      const t = document.getElementById('signinToast');
-      t.textContent = msg;
-      t.className = 'toast show ' + kind;
-    }
 
     function escapeHtml(s) {
       return String(s).replace(/[&<>"']/g, c => ({
