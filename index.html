@@ -1281,7 +1281,6 @@
       const banks = aggregate(checks, c => c.bank);
       const suppliers = aggregate(checks, c => c.supplier);
 
-      const recent = checks.slice().sort((a, b) => (b.checkDate || '').localeCompare(a.checkDate || '')).slice(0, 10);
 
       container.innerHTML = `
         <div class="card">
@@ -1324,29 +1323,14 @@
           </div>
 
           <div class="breakdown">
-            <h3>By Supplier (top 5)</h3>
-            ${suppliers.slice(0, 5).map(s => `
+            <h3>By Supplier</h3>
+            ${suppliers.map(s => `
               <div class="breakdown-row">
                 <span class="name">${escapeHtml(s.key)}</span>
                 <span class="count">${s.count} check${s.count === 1 ? '' : 's'}</span>
                 <span>&#8369;${fmtAmt(s.total)}</span>
               </div>
             `).join('')}
-          </div>
-
-          <div class="breakdown">
-            <h3>Recent (10 most recent by check date)</h3>
-            <div class="check-list">
-              ${recent.map(c => `
-                <div class="item">
-                  <div>
-                    <div><strong>${escapeHtml(c.supplier)}</strong></div>
-                    <div class="meta">${escapeHtml(c.checkDate)} · ${escapeHtml(c.bank)} · #${escapeHtml(c.checkNumber)}</div>
-                  </div>
-                  <div>&#8369;${fmtAmt(c.amount)}</div>
-                </div>
-              `).join('')}
-            </div>
           </div>
         </div>
       `;
