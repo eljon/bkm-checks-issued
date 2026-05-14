@@ -188,7 +188,7 @@ function formatDate_(v) {
 // existing spreadsheets. Each version runs the migration once per Sheet
 // (tracked in document properties) and then short-circuits on every
 // subsequent call so doPost stays fast.
-const SCHEMA_VERSION = 'v5';
+const SCHEMA_VERSION = 'v4';
 const CACHE_TTL_SEC = 600; // 10 minutes
 
 function ensureSheets_() {
@@ -237,13 +237,22 @@ function runMigrationsIfNeeded_(checks) {
   applyChecksColumnFormats_(checks);
   backfillListFromChecks_(checks, SHEET_SUPPLIERS, 2); // column B: Supplier
   backfillListFromChecks_(checks, SHEET_BANKS, 6);     // column F: Bank
-  mergeSupplierAliases_(checks);
   props.setProperty('schema_version', SCHEMA_VERSION);
 }
 
-// One-time supplier dedupe. Each entry's `aliases` get rewritten to
-// `canonical` in the Checks sheet, then removed from the Suppliers list.
-function mergeSupplierAliases_(checks) {
+// ============================================================================
+// ONE-TIME UTILITY — delete this function after running it.
+//
+// How to run:
+//   1. In the Apps Script editor, paste this file's contents and save.
+//   2. In the function dropdown at the top, select `mergeSupplierAliases`.
+//   3. Click Run. Grant permissions on first run.
+//   4. Open the Sheet to verify the Suppliers tab and the Checks rows look
+//      right.
+//   5. Delete this function (and this comment block) from apps_script.gs
+//      and save again. No redeploy needed — this runs only from the editor.
+// ============================================================================
+function mergeSupplierAliases() {
   const merges = [
     { canonical: "ERICK'S MOTOR SALES",                       aliases: ['ERICKS MOTOR SALES'] },
     { canonical: "ROBERT'S AIPMC",                            aliases: ['ROBERTS AIPMC'] },
@@ -251,13 +260,13 @@ function mergeSupplierAliases_(checks) {
     { canonical: "FLY DRAGON INTERNATIONAL HOLDING'S INC",    aliases: ['FLY DRAGON INTERNATIONAL HOLDINGS INC'] },
     { canonical: 'XIAOHAI CHEN',                              aliases: ['XIAHAI CHEN'] },
     { canonical: 'TRIPLE P INCLUSIVE SALES CORP',             aliases: ['TRIPLE P INCLUSNE SALES CORP'] },
-    { canonical: 'DREAMVOLTS MARKETINGB',                     aliases: ['DREAMVOLTS MARKETING'] },
+    { canonical: 'DREAMVOLTS MARKETING',                      aliases: ['DREAMVOLTS MARKETINGB'] },
     { canonical: 'AUTOPHIL ZONE SALES CORPORATION',           aliases: ['AUTOPHIL ZONE SALES CORP'] },
     { canonical: 'KINGSWEALTH INTERNATIONAL TRADING',         aliases: ['KINGSWEALTH INTERNATIONAL'] },
     { canonical: 'LRY BRAKE CLUTCH LINING TRADING',           aliases: ['LRY BRAKE CLUTCH LINING'] },
     { canonical: 'MAODUO TRADING CORP',                       aliases: ['MAODUO TRADING'] },
     { canonical: 'Southeast Marketing Corporation',           aliases: ['Southeast'] },
-    { canonical: 'NUVO PARTS PARTS SUPPLY',                   aliases: ['NUVO AUTO PARTS CORP'] }
+    { canonical: 'NUVO AUTO PARTS CORP',                      aliases: ['NUVO PARTS PARTS SUPPLY'] }
   ];
 
   const aliasMap = new Map();
@@ -265,29 +274,32 @@ function mergeSupplierAliases_(checks) {
     m.aliases.forEach(a => aliasMap.set(a.toLowerCase(), m.canonical));
   });
 
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const checks = ss.getSheetByName(SHEET_CHECKS);
+  if (!checks) throw new Error('Checks sheet not found.');
+
   // Rewrite supplier column in Checks.
+  let rewritten = 0;
   const lastRow = checks.getLastRow();
   if (lastRow >= 2) {
     const range = checks.getRange(2, 2, lastRow - 1, 1); // column B
     const values = range.getValues();
-    let dirty = false;
     for (let i = 0; i < values.length; i++) {
       const v = String(values[i][0] || '').trim();
       if (!v) continue;
       const replacement = aliasMap.get(v.toLowerCase());
       if (replacement && replacement !== v) {
         values[i][0] = replacement;
-        dirty = true;
+        rewritten++;
       }
     }
-    if (dirty) range.setValues(values);
+    if (rewritten) range.setValues(values);
   }
 
   // Rebuild Suppliers list: drop aliases, keep everything else (deduped),
   // make sure every canonical is present.
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
   const suppliers = ss.getSheetByName(SHEET_SUPPLIERS);
-  if (!suppliers) return;
+  if (!suppliers) throw new Error('Suppliers sheet not found.');
   const sLastRow = suppliers.getLastRow();
   const kept = [];
   const keptLower = new Set();
@@ -320,6 +332,9 @@ function mergeSupplierAliases_(checks) {
   }
 
   CacheService.getScriptCache().remove('col_' + SHEET_SUPPLIERS);
+
+  Logger.log('Rewrote ' + rewritten + ' Checks row(s). Suppliers list now has ' +
+             kept.length + ' entries.');
 }
 
 function backfillListFromChecks_(checks, listSheetName, columnIndex) {
