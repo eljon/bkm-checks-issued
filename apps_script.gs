@@ -188,7 +188,7 @@ function formatDate_(v) {
 // existing spreadsheets. Each version runs the migration once per Sheet
 // (tracked in document properties) and then short-circuits on every
 // subsequent call so doPost stays fast.
-const SCHEMA_VERSION = 'v3';
+const SCHEMA_VERSION = 'v4';
 const CACHE_TTL_SEC = 600; // 10 minutes
 
 function ensureSheets_() {
@@ -205,7 +205,6 @@ function ensureSheets_() {
     checks.setFrozenRows(1);
     applyChecksColumnFormats_(checks);
   }
-  runMigrationsIfNeeded_(checks);
 
   if (!ss.getSheetByName(SHEET_SUPPLIERS)) {
     const s = ss.insertSheet(SHEET_SUPPLIERS);
@@ -218,6 +217,8 @@ function ensureSheets_() {
     b.getRange(1, 1).setValue('Bank').setFontWeight('bold');
     b.setFrozenRows(1);
   }
+
+  runMigrationsIfNeeded_(checks);
 
   cache.put('schema_ok', SCHEMA_VERSION, CACHE_TTL_SEC);
 }
@@ -234,7 +235,50 @@ function runMigrationsIfNeeded_(checks) {
   if (props.getProperty('schema_version') === SCHEMA_VERSION) return;
   migrateChecksHeader_(checks);
   applyChecksColumnFormats_(checks);
+  backfillListFromChecks_(checks, SHEET_SUPPLIERS, 2); // column B: Supplier
+  backfillListFromChecks_(checks, SHEET_BANKS, 6);     // column F: Bank
   props.setProperty('schema_version', SCHEMA_VERSION);
+}
+
+function backfillListFromChecks_(checks, listSheetName, columnIndex) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const listSheet = ss.getSheetByName(listSheetName);
+  if (!listSheet) return;
+
+  const lastRow = checks.getLastRow();
+  if (lastRow < 2) return;
+
+  // Unique non-empty values currently in the Checks column.
+  const seenInChecks = new Map(); // lower -> original casing (first occurrence)
+  const checkValues = checks.getRange(2, columnIndex, lastRow - 1, 1).getValues();
+  for (let i = 0; i < checkValues.length; i++) {
+    const v = String(checkValues[i][0] || '').trim();
+    if (!v) continue;
+    const k = v.toLowerCase();
+    if (!seenInChecks.has(k)) seenInChecks.set(k, v);
+  }
+
+  // Whatever already exists in the list tab.
+  const existingLower = new Set();
+  const listLastRow = listSheet.getLastRow();
+  if (listLastRow >= 2) {
+    const listValues = listSheet.getRange(2, 1, listLastRow - 1, 1).getValues();
+    for (let i = 0; i < listValues.length; i++) {
+      const v = String(listValues[i][0] || '').trim();
+      if (v) existingLower.add(v.toLowerCase());
+    }
+  }
+
+  // Append rows for anything missing.
+  const missing = [];
+  seenInChecks.forEach((original, lower) => {
+    if (!existingLower.has(lower)) missing.push([original]);
+  });
+  if (!missing.length) return;
+
+  const startRow = listSheet.getLastRow() + 1;
+  listSheet.getRange(startRow, 1, missing.length, 1).setValues(missing);
+  CacheService.getScriptCache().remove('col_' + listSheetName);
 }
 
 function migrateChecksHeader_(checks) {
