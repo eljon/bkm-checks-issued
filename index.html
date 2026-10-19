@@ -605,46 +605,37 @@
     }
 
     /* ---------- Check print overlay ----------
-       Tuned for Security Bank check stock (~175mm x 75mm landscape).
-       The browser prints on LETTER paper (8.5in x 11in portrait). The check
-       is assumed to be loaded CENTERED horizontally in the paper tray and
-       aligned to the top edge, fed short-edge first so the LEFT edge of the
-       check enters the printer first. The overlay is authored in landscape
-       (175mm x 75mm) and rotated 90° CW into a 75mm x 175mm slot centered
-       horizontally at the top of the letter page.
+       Prints each check on a LETTER sheet (8.5in x 11in portrait). The
+       physical check is loaded LANDSCAPE (long edge horizontal), centered
+       horizontally in the paper tray, aligned to the top edge of the paper.
+       No rotation involved — field positions are plain landscape check
+       coordinates (x from check left, y from check top), so a 1mm change
+       to any variable moves the printed text by 1mm on the check.
 
-       --check-slot-w / --check-slot-h = physical size of the check stock.
-       --check-x-offset / --check-y-offset = nudge the slot if your printer
-       feeds the check slightly off-center. */
+       Defaults are tuned for the BDO check (~175mm x 83mm). */
     :root {
-      /* Physical check dimensions, landscape (W x H). Common PH checks:
-           BDO:            ~175mm x 83mm
-           Security Bank:  ~175mm x 75mm
-         --check-slot-w / --check-slot-h are the same values rotated 90°
-         (what the browser sees as a portrait slot on the letter page). */
       --check-w: 175mm;
       --check-h: 83mm;
-      --check-slot-w: 83mm;
-      --check-slot-h: 175mm;
       --check-x-offset: 0mm;
       --check-y-offset: 0mm;
 
-      /* Field positions are in LANDSCAPE check coordinates (x from left,
-         y from top). Each 1mm change shifts the printed text by 1mm on
-         the physical check — tweak to taste after a trial print. */
+      /* DATE boxes: top-right of check (8 cells, M M D D Y Y Y Y) */
       --check-date-top: 17mm;
-      --check-date-right: 10mm;
+      --check-date-right: 30mm;
       --check-date-spacing: 2.6mm;
 
-      --check-payee-top: 30mm;
-      --check-payee-left: 33mm;
+      /* PAY TO THE ORDER OF line */
+      --check-payee-top: 40mm;
+      --check-payee-left: 45mm;
 
-      --check-words-top: 38mm;
-      --check-words-left: 18mm;
-      --check-words-width: 95mm;
+      /* PESOS line (amount in words) */
+      --check-words-top: 55mm;
+      --check-words-left: 50mm;
+      --check-words-width: 115mm;
 
-      --check-amount-top: 30mm;
-      --check-amount-right: 6mm;
+      /* Amount in figures (right of PAY TO) */
+      --check-amount-top: 40mm;
+      --check-amount-right: 10mm;
     }
 
     .print-checks { display: none; }
@@ -681,9 +672,10 @@
       .container { display: none !important; }
 
       body.printing-checks .print-checks { display: block !important; }
-      /* Each check gets its own letter-sized page. The check sits at the
-         horizontal center / top of the letter sheet (how the physical check
-         is loaded in the paper tray). */
+      /* Each check gets its own letter-sized page. Feed the check LANDSCAPE
+         (long edge horizontal) centered on the paper and aligned to the top
+         edge. Field positions are then plain landscape check coordinates — no
+         rotation involved. */
       body.printing-checks .print-check-page {
         width: 8.5in;
         height: 11in;
@@ -696,16 +688,12 @@
         page-break-after: auto;
         break-after: auto;
       }
-      /* The rotated landscape overlay occupies a 75x175mm slot centered
-         horizontally at the top of the letter page (plus any user offset). */
       body.printing-checks .pc-overlay {
         position: absolute;
         top: var(--check-y-offset);
-        left: calc((100% - var(--check-slot-w)) / 2 + var(--check-x-offset));
+        left: calc((100% - var(--check-w)) / 2 + var(--check-x-offset));
         width: var(--check-w);
         height: var(--check-h);
-        transform-origin: 0 0;
-        transform: translate(var(--check-slot-w), 0) rotate(90deg);
         font-family: "Courier New", Courier, monospace;
         color: #000;
       }
