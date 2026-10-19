@@ -617,71 +617,24 @@
     }
 
     /* ---------- Check print overlay ----------
-       Prints each check on a LETTER sheet (8.5in x 11in portrait). The
-       physical check is loaded PORTRAIT in the paper tray (short edge
-       horizontal, long edge vertical), centered horizontally, with the
-       LEFT edge of the landscape check at the TOP of the paper so it
-       enters the printer first. The 175x83mm landscape overlay is
-       rotated 90° CW into an 83x175mm slot centered horizontally at the
-       top of the letter page.
-
-       Field positions are LANDSCAPE check coordinates (x from check left,
-       y from check top). Tuned for BDO (~175mm x 83mm). */
+       Letter paper, portrait. The check is fed portrait, centered, LEFT edge
+       of the check first. The overlay below is rotated 90° CW into a slot at
+       the top-center of the page. Do not change these structural values:
+       the field calibration in CHECK_LAYOUT / PRINT_CAL (JS) was measured
+       against exactly this geometry. Field positions live in the JS. */
     :root {
       --check-w: 175mm;
       --check-h: 83mm;
       --check-slot-w: 83mm;
-      --check-slot-h: 175mm;
       --check-x-offset: 0mm;
       --check-y-offset: 0mm;
-
-      /* DATE boxes: 8 cells (M M D D Y Y Y Y) at top-right. Boxes span
-         landscape x = 107..145mm, y ≈ 16..22mm. */
-      --check-date-top: 17mm;
-      --check-date-right: 30mm;
-      --check-date-spacing: 2.6mm;
-
-      /* PAY TO THE ORDER OF line, after the label. */
-      --check-payee-top: 38mm;
-      --check-payee-left: 40mm;
-
-      /* PESOS line (amount in words), after the PESOS label. */
-      --check-words-top: 52mm;
-      --check-words-left: 25mm;
-      --check-words-width: 115mm;
-
-      /* Amount in figures (right of PAY TO line). */
-      --check-amount-top: 38mm;
-      --check-amount-right: 10mm;
     }
 
     .print-checks { display: none; }
-    .print-checks .pc-field { position: absolute; white-space: nowrap; font-size: 12pt; }
-    .print-checks .pc-date {
-      top: var(--check-date-top);
-      right: var(--check-date-right);
-      letter-spacing: var(--check-date-spacing);
-      font-weight: bold;
-      font-size: 13pt;
-    }
-    .print-checks .pc-payee {
-      top: var(--check-payee-top);
-      left: var(--check-payee-left);
-      font-size: 12pt;
-    }
-    .print-checks .pc-words {
-      top: var(--check-words-top);
-      left: var(--check-words-left);
-      width: var(--check-words-width);
-      white-space: normal;
-      font-size: 10pt;
-      line-height: 1.2;
-    }
-    .print-checks .pc-amt {
-      top: var(--check-amount-top);
-      right: var(--check-amount-right);
-      font-weight: bold;
-      font-size: 13pt;
+    .print-checks .pc-field {
+      position: absolute;
+      white-space: nowrap;
+      line-height: normal;
     }
 
     @media print {
@@ -725,7 +678,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>BKM Checks Issued <span class="version">v1</span></h1>
+    <h1>BKM Checks Issued <span class="version">v2</span></h1>
 
     <div class="tabs">
       <button type="button" class="tab active" data-tab="enter">Enter</button>
@@ -892,7 +845,6 @@
         <div class="list-bar">
           <div class="list-bar-summary"><strong id="printPendingCount">0</strong> pending print</div>
           <div class="list-bar-actions">
-            <button type="button" id="printTestBtn" title="Prints a diagnostic grid instead of a real check">Test</button>
             <button type="button" id="printReloadBtn">Reload</button>
           </div>
         </div>
@@ -1048,29 +1000,93 @@
       printPage('printing-report', 'size: letter; margin: 0.75in;');
     }
 
-    // Build one <.print-check-page> per selected check and populate its
-    // rotated overlay with date, payee, amount-in-words, amount-in-figures.
+    // Target positions on the physical BDO check (203mm x 76mm, landscape,
+    // mm from the check's left and top edges), measured from the check.
+    const CHECK_LAYOUT = {
+      // Center of each date box: M M - D D - Y Y Y Y
+      dateBoxX: [145.4, 150.6, 157.8, 163.3, 171.0, 176.4, 182.0, 187.9],
+      dateBoxY: 14.0,
+      datePt: 12,
+      // PAY TO THE ORDER OF line (underline at y≈24.9, x 26..131)
+      payeeX: 30, payeeMaxX: 130, payeeBaseline: 24.0, payeePt: 12,
+      // Amount box right of the peso sign (x 136.8..189.6, y 19.5..26)
+      amountX: 139.5, amountMaxX: 186.5, amountBaseline: 24.0, amountPt: 13,
+      // PESOS line (underline at y≈33.3, x 19.6..188.3)
+      wordsX: 23, wordsMaxX: 186, wordsBaseline: 32.3, wordsPt: 10, wordsMinPt: 6
+    };
+
+    // The printout comes out scaled relative to the CSS overlay. Measured by
+    // comparing two earlier prints on the physical check with the overlay
+    // positions that produced them (8 fields, all within ~2mm):
+    //   checkX = sx * overlayX + bx,  checkY = sy * overlayY + by
+    const PRINT_CAL = { sx: 0.923, bx: 12.65, sy: 0.913, by: 0.70 };
+
+    const MM_PER_PT = 0.35278;
+    const COURIER_ADVANCE = 0.6;   // glyph width, em
+    const COURIER_ASCENT = 0.8325; // baseline offset from line-box top, em
+    const COURIER_CAP_MID = 0.2855; // digit/cap vertical middle above baseline, em
+
+    function ovX(x) { return (x - PRINT_CAL.bx) / PRINT_CAL.sx; }
+    function ovY(y) { return (y - PRINT_CAL.by) / PRINT_CAL.sy; }
+
+    // Font size (pt) that fits `text` inside `widthOv` mm of overlay space.
+    function fitPt(text, widthOv, maxPt, minPt) {
+      const fit = widthOv / (Math.max(text.length, 1) * COURIER_ADVANCE * MM_PER_PT);
+      return Math.max(minPt || 1, Math.min(maxPt, fit));
+    }
+
+    // One line of text with its baseline at `baselineCheck` (check mm).
+    function pcLine(text, leftOv, widthOv, baselineCheck, pt, opts) {
+      const emOv = pt * MM_PER_PT;
+      const top = ovY(baselineCheck) - COURIER_ASCENT * emOv;
+      const align = (opts && opts.align) || 'left';
+      const weight = (opts && opts.bold) ? 'bold' : 'normal';
+      return `<div class="pc-field" style="left:${leftOv.toFixed(2)}mm;top:${top.toFixed(2)}mm;` +
+        `width:${widthOv.toFixed(2)}mm;text-align:${align};font-size:${pt.toFixed(2)}pt;` +
+        `font-weight:${weight};">${escapeHtml(text)}</div>`;
+    }
+
+    function pcCheckFields(c) {
+      const L = CHECK_LAYOUT;
+      const amt = Number(c.amount) || 0;
+      const digits = formatCheckDate(c.checkDate || '').replace(/\D/g, '');
+      const payee = String(c.supplier || '').toUpperCase();
+      const words = pesoToWords(amt);
+      const amtText = '**' + amt.toLocaleString('en-PH', {
+        minimumFractionDigits: 2, maximumFractionDigits: 2
+      }) + '**';
+
+      let html = '';
+
+      // Date: one digit centered in each box.
+      const dEm = L.datePt * MM_PER_PT;
+      const dTop = ovY(L.dateBoxY) - (COURIER_ASCENT - COURIER_CAP_MID) * dEm;
+      const dW = COURIER_ADVANCE * dEm;
+      digits.slice(0, 8).split('').forEach((d, i) => {
+        const left = ovX(L.dateBoxX[i]) - dW / 2;
+        html += `<div class="pc-field" style="left:${left.toFixed(2)}mm;top:${dTop.toFixed(2)}mm;` +
+          `font-size:${L.datePt}pt;font-weight:bold;">${d}</div>`;
+      });
+
+      const payL = ovX(L.payeeX), payW = ovX(L.payeeMaxX) - payL;
+      html += pcLine(payee, payL, payW, L.payeeBaseline, fitPt(payee, payW, L.payeePt, 6));
+
+      const amtL = ovX(L.amountX), amtW = ovX(L.amountMaxX) - amtL;
+      html += pcLine(amtText, amtL, amtW, L.amountBaseline,
+        fitPt(amtText, amtW, L.amountPt, 7), { align: 'right', bold: true });
+
+      const wL = ovX(L.wordsX), wW = ovX(L.wordsMaxX) - wL;
+      html += pcLine(words, wL, wW, L.wordsBaseline, fitPt(words, wW, L.wordsPt, L.wordsMinPt));
+
+      return html;
+    }
+
+    // One letter page per check; each page holds the rotated overlay.
     function fillChecksBatch(checks) {
       const container = document.getElementById('printChecks');
-      container.innerHTML = (checks || []).map(c => {
-        const amt = Number(c.amount) || 0;
-        const dateText = formatCheckDate(c.checkDate || '');
-        const payeeText = String(c.supplier || '').toUpperCase();
-        const wordsText = pesoToWords(amt);
-        const amtText = '**' + amt.toLocaleString('en-PH', {
-          minimumFractionDigits: 2, maximumFractionDigits: 2
-        }) + '**';
-        return `
-          <div class="print-check-page">
-            <div class="pc-overlay">
-              <div class="pc-field pc-date">${escapeHtml(dateText)}</div>
-              <div class="pc-field pc-payee">${escapeHtml(payeeText)}</div>
-              <div class="pc-field pc-words">${escapeHtml(wordsText)}</div>
-              <div class="pc-field pc-amt">${escapeHtml(amtText)}</div>
-            </div>
-          </div>
-        `;
-      }).join('');
+      container.innerHTML = (checks || []).map(c =>
+        `<div class="print-check-page"><div class="pc-overlay">${pcCheckFields(c)}</div></div>`
+      ).join('');
     }
 
     function formatCheckDate(iso) {
@@ -1740,7 +1756,6 @@
       document.getElementById('printReloadBtn').addEventListener('click', () =>
         loadPendingPrint().catch(err => showToast('printToast', err.message, 'error'))
       );
-      document.getElementById('printTestBtn').addEventListener('click', onTestPrint);
       const seriesCb = document.getElementById('seriesMode');
       const wrap = document.getElementById('seriesInputWrap');
       seriesCb.addEventListener('change', () => {
@@ -1750,29 +1765,6 @@
       document.getElementById('seriesApplyBtn').addEventListener('click', applySeries);
     }
 
-    // Diagnostic: print a single page showing where the overlay lands.
-    // Prints a rectangle around the slot, labels each corner with its
-    // intended landscape-check coordinates, and marks each field position
-    // with a cross and label. Print this on a blank sheet, hold it up to
-    // the check, and see where things really land.
-    function onTestPrint() {
-      const container = document.getElementById('printChecks');
-      container.innerHTML = `
-        <div class="print-check-page">
-          <div class="pc-overlay" style="outline: 1pt dashed #000;">
-            <div class="pc-field" style="top: 0; left: 0; font-size: 8pt;">(0, 0) check TL</div>
-            <div class="pc-field" style="top: 0; right: 0; font-size: 8pt;">(W, 0) check TR</div>
-            <div class="pc-field" style="bottom: 0; left: 0; font-size: 8pt;">(0, H) check BL</div>
-            <div class="pc-field" style="bottom: 0; right: 0; font-size: 8pt;">(W, H) check BR</div>
-            <div class="pc-field pc-date">+ DATE here</div>
-            <div class="pc-field pc-payee">+ PAYEE here</div>
-            <div class="pc-field pc-words">+ WORDS go on this line, wrapping as needed</div>
-            <div class="pc-field pc-amt">+ AMOUNT**</div>
-          </div>
-        </div>
-      `;
-      printChecksBatch();
-    }
 
     async function loadPendingPrint() {
       const btn = document.getElementById('printReloadBtn');
