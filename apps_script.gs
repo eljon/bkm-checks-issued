@@ -152,7 +152,7 @@ function getPendingPrint_() {
   ensureSheets_();
   const rows = readChecks_();
   const checks = rows.map(r => rowToCheck_(r.row, r.rowIndex))
-    .filter(c => !c.checkNumber && !c.printed)
+    .filter(c => !c.checkNumber && !c.printed && isFullyEncoded_(c))
     .sort((a, b) => (a.checkDate || '').localeCompare(b.checkDate || ''));
   return { checks };
 }
@@ -161,9 +161,16 @@ function getPendingNumber_() {
   ensureSheets_();
   const rows = readChecks_();
   const checks = rows.map(r => rowToCheck_(r.row, r.rowIndex))
-    .filter(c => !c.checkNumber && c.printed)
+    .filter(c => !c.checkNumber && c.printed && isFullyEncoded_(c))
     .sort((a, b) => (a.checkDate || '').localeCompare(b.checkDate || ''));
   return { checks };
+}
+
+// A row only belongs in the Print / Add # tabs when every field other than
+// the check number is already filled in. Historical rows that are blank
+// across the board should NOT surface as pending work.
+function isFullyEncoded_(c) {
+  return !!(c.supplier && c.bank && c.checkDate && c.amount > 0);
 }
 
 function markPrinted_(p) {
