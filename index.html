@@ -607,15 +607,15 @@
     /* ---------- Check print overlay ----------
        Tuned for Security Bank check stock (~175mm x 75mm landscape).
        The browser prints on LETTER paper (8.5in x 11in portrait). The check
-       is assumed to be loaded in the TOP-LEFT corner of the letter sheet
-       (align it to the top edge and the left paper guide), fed short-edge
-       first so the LEFT edge of the check enters the printer first. The
-       overlay is authored in landscape (175mm x 75mm) and rotated 90° CW
-       into the 75mm x 175mm top-left slot of the letter page.
+       is assumed to be loaded CENTERED horizontally in the paper tray and
+       aligned to the top edge, fed short-edge first so the LEFT edge of the
+       check enters the printer first. The overlay is authored in landscape
+       (175mm x 75mm) and rotated 90° CW into a 75mm x 175mm slot centered
+       horizontally at the top of the letter page.
 
        --check-slot-w / --check-slot-h = physical size of the check stock.
-       --check-x-offset / --check-y-offset = nudge the whole slot if your
-       paper guides offset the check from the exact top-left corner. */
+       --check-x-offset / --check-y-offset = nudge the slot if your printer
+       feeds the check slightly off-center. */
     :root {
       --check-w: 175mm;
       --check-h: 75mm;
@@ -673,8 +673,9 @@
       .container { display: none !important; }
 
       body.printing-checks .print-checks { display: block !important; }
-      /* Each check gets its own letter-sized page. Content is anchored to
-         the TOP-LEFT corner where the check physically sits in the tray. */
+      /* Each check gets its own letter-sized page. The check sits at the
+         horizontal center / top of the letter sheet (how the physical check
+         is loaded in the paper tray). */
       body.printing-checks .print-check-page {
         width: 8.5in;
         height: 11in;
@@ -687,12 +688,12 @@
         page-break-after: auto;
         break-after: auto;
       }
-      /* The rotated landscape overlay occupies the 75x175mm slot in the
-         letter page's top-left corner (plus any user-set offset). */
+      /* The rotated landscape overlay occupies a 75x175mm slot centered
+         horizontally at the top of the letter page (plus any user offset). */
       body.printing-checks .pc-overlay {
         position: absolute;
         top: var(--check-y-offset);
-        left: var(--check-x-offset);
+        left: calc((100% - var(--check-slot-w)) / 2 + var(--check-x-offset));
         width: var(--check-w);
         height: var(--check-h);
         transform-origin: 0 0;
