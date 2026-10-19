@@ -886,6 +886,7 @@
         <div class="list-bar">
           <div class="list-bar-summary"><strong id="printPendingCount">0</strong> pending print</div>
           <div class="list-bar-actions">
+            <button type="button" id="printTestBtn" title="Prints a diagnostic grid instead of a real check">Test</button>
             <button type="button" id="printReloadBtn">Reload</button>
           </div>
         </div>
@@ -1733,6 +1734,7 @@
       document.getElementById('printReloadBtn').addEventListener('click', () =>
         loadPendingPrint().catch(err => showToast('printToast', err.message, 'error'))
       );
+      document.getElementById('printTestBtn').addEventListener('click', onTestPrint);
       const seriesCb = document.getElementById('seriesMode');
       const wrap = document.getElementById('seriesInputWrap');
       seriesCb.addEventListener('change', () => {
@@ -1740,6 +1742,30 @@
         if (seriesCb.checked) document.getElementById('seriesStart').focus();
       });
       document.getElementById('seriesApplyBtn').addEventListener('click', applySeries);
+    }
+
+    // Diagnostic: print a single page showing where the overlay lands.
+    // Prints a rectangle around the slot, labels each corner with its
+    // intended landscape-check coordinates, and marks each field position
+    // with a cross and label. Print this on a blank sheet, hold it up to
+    // the check, and see where things really land.
+    function onTestPrint() {
+      const container = document.getElementById('printChecks');
+      container.innerHTML = `
+        <div class="print-check-page">
+          <div class="pc-overlay" style="outline: 1pt dashed #000;">
+            <div class="pc-field" style="top: 0; left: 0; font-size: 8pt;">(0, 0) check TL</div>
+            <div class="pc-field" style="top: 0; right: 0; font-size: 8pt;">(W, 0) check TR</div>
+            <div class="pc-field" style="bottom: 0; left: 0; font-size: 8pt;">(0, H) check BL</div>
+            <div class="pc-field" style="bottom: 0; right: 0; font-size: 8pt;">(W, H) check BR</div>
+            <div class="pc-field pc-date">+ DATE here</div>
+            <div class="pc-field pc-payee">+ PAYEE here</div>
+            <div class="pc-field pc-words">+ WORDS go on this line, wrapping as needed</div>
+            <div class="pc-field pc-amt">+ AMOUNT**</div>
+          </div>
+        </div>
+      `;
+      printChecksBatch();
     }
 
     async function loadPendingPrint() {
