@@ -606,35 +606,40 @@
 
     /* ---------- Check print overlay ----------
        Prints each check on a LETTER sheet (8.5in x 11in portrait). The
-       physical check is loaded LANDSCAPE (long edge horizontal), centered
-       horizontally in the paper tray, aligned to the top edge of the paper.
-       No rotation involved — field positions are plain landscape check
-       coordinates (x from check left, y from check top), so a 1mm change
-       to any variable moves the printed text by 1mm on the check.
+       physical check is loaded PORTRAIT in the paper tray (short edge
+       horizontal, long edge vertical), centered horizontally, with the
+       LEFT edge of the landscape check at the TOP of the paper so it
+       enters the printer first. The 175x83mm landscape overlay is
+       rotated 90° CW into an 83x175mm slot centered horizontally at the
+       top of the letter page.
 
-       Defaults are tuned for the BDO check (~175mm x 83mm). */
+       Field positions are LANDSCAPE check coordinates (x from check left,
+       y from check top). Tuned for BDO (~175mm x 83mm). */
     :root {
       --check-w: 175mm;
       --check-h: 83mm;
+      --check-slot-w: 83mm;
+      --check-slot-h: 175mm;
       --check-x-offset: 0mm;
       --check-y-offset: 0mm;
 
-      /* DATE boxes: top-right of check (8 cells, M M D D Y Y Y Y) */
+      /* DATE boxes: 8 cells (M M D D Y Y Y Y) at top-right. Boxes span
+         landscape x = 107..145mm, y ≈ 16..22mm. */
       --check-date-top: 17mm;
       --check-date-right: 30mm;
       --check-date-spacing: 2.6mm;
 
-      /* PAY TO THE ORDER OF line */
-      --check-payee-top: 40mm;
-      --check-payee-left: 45mm;
+      /* PAY TO THE ORDER OF line, after the label. */
+      --check-payee-top: 38mm;
+      --check-payee-left: 40mm;
 
-      /* PESOS line (amount in words) */
-      --check-words-top: 55mm;
-      --check-words-left: 50mm;
+      /* PESOS line (amount in words), after the PESOS label. */
+      --check-words-top: 52mm;
+      --check-words-left: 25mm;
       --check-words-width: 115mm;
 
-      /* Amount in figures (right of PAY TO) */
-      --check-amount-top: 40mm;
+      /* Amount in figures (right of PAY TO line). */
+      --check-amount-top: 38mm;
       --check-amount-right: 10mm;
     }
 
@@ -672,10 +677,9 @@
       .container { display: none !important; }
 
       body.printing-checks .print-checks { display: block !important; }
-      /* Each check gets its own letter-sized page. Feed the check LANDSCAPE
-         (long edge horizontal) centered on the paper and aligned to the top
-         edge. Field positions are then plain landscape check coordinates — no
-         rotation involved. */
+      /* Each check gets its own letter-sized page. The 175x83mm landscape
+         overlay is rotated 90° CW to fit the 83x175mm slot centered at the
+         top of the letter page where the check physically sits. */
       body.printing-checks .print-check-page {
         width: 8.5in;
         height: 11in;
@@ -691,9 +695,11 @@
       body.printing-checks .pc-overlay {
         position: absolute;
         top: var(--check-y-offset);
-        left: calc((100% - var(--check-w)) / 2 + var(--check-x-offset));
+        left: calc((100% - var(--check-slot-w)) / 2 + var(--check-x-offset));
         width: var(--check-w);
         height: var(--check-h);
+        transform-origin: 0 0;
+        transform: translate(var(--check-slot-w), 0) rotate(90deg);
         font-family: "Courier New", Courier, monospace;
         color: #000;
       }
