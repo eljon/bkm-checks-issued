@@ -630,20 +630,21 @@
       --check-y-offset: 0mm;
 
       /* Field positions are in LANDSCAPE check coordinates (x from left,
-         y from top). The @media print block rotates the overlay for you. */
+         y from top). Each 1mm change shifts the printed text by 1mm on
+         the physical check — tweak to taste after a trial print. */
       --check-date-top: 17mm;
-      --check-date-right: 30mm;
+      --check-date-right: 10mm;
       --check-date-spacing: 2.6mm;
 
-      --check-payee-top: 40mm;
-      --check-payee-left: 45mm;
+      --check-payee-top: 30mm;
+      --check-payee-left: 33mm;
 
-      --check-words-top: 55mm;
-      --check-words-left: 50mm;
-      --check-words-width: 115mm;
+      --check-words-top: 38mm;
+      --check-words-left: 18mm;
+      --check-words-width: 95mm;
 
-      --check-amount-top: 40mm;
-      --check-amount-right: 10mm;
+      --check-amount-top: 30mm;
+      --check-amount-right: 6mm;
     }
 
     .print-checks { display: none; }
