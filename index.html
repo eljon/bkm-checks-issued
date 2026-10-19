@@ -384,6 +384,83 @@
       border: 1px solid var(--primary);
     }
 
+    /* ---------- List bar (Print / Add # tabs) ---------- */
+    .list-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+      padding: 10px 12px;
+      background: #f9fafb;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    .list-bar-summary strong { color: var(--text); font-weight: 700; }
+    .list-bar-actions { display: flex; gap: 6px; }
+    .list-bar-actions button {
+      width: auto;
+      padding: 4px 10px;
+      margin: 0;
+      font-size: 12px;
+      background: white;
+      color: var(--primary);
+      border: 1px solid var(--primary);
+    }
+
+    /* ---------- Series input (Add # tab) ---------- */
+    .series-input {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .series-input input {
+      padding: 10px 12px;
+      font-size: 15px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+    .series-input button {
+      width: auto;
+      padding: 10px 16px;
+      margin: 0;
+      font-size: 14px;
+      background: white;
+      color: var(--primary);
+      border: 1px solid var(--primary);
+    }
+
+    /* ---------- Add # row ---------- */
+    .addnum-row {
+      display: grid;
+      grid-template-columns: auto 1fr 110px;
+      gap: 10px;
+      align-items: center;
+      padding: 10px;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+    .addnum-row input[type=checkbox] {
+      width: 18px;
+      height: 18px;
+      margin: 0;
+      padding: 0;
+      cursor: pointer;
+    }
+    .addnum-row .addnum-info strong { font-weight: 600; }
+    .addnum-row .addnum-info .meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .addnum-row .addnum-input {
+      padding: 8px 10px;
+      font-size: 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      width: 100%;
+      font-variant-numeric: tabular-nums;
+    }
+
     /* ---------- Modal ---------- */
     .modal-backdrop {
       position: fixed;
@@ -506,32 +583,21 @@
       --check-amount-right: 6mm;
     }
 
-    .print-check {
-      display: none;
-      width: var(--check-w);
-      height: var(--check-h);
-      position: relative;
-      font-family: "Courier New", Courier, monospace;
-      color: #000;
-    }
-    .print-check .pc-field {
-      position: absolute;
-      white-space: nowrap;
-      font-size: 12pt;
-    }
-    .print-check .pc-date {
+    .print-checks { display: none; }
+    .print-checks .pc-field { position: absolute; white-space: nowrap; font-size: 12pt; }
+    .print-checks .pc-date {
       top: var(--check-date-top);
       right: var(--check-date-right);
       letter-spacing: var(--check-date-spacing);
       font-weight: bold;
       font-size: 13pt;
     }
-    .print-check .pc-payee {
+    .print-checks .pc-payee {
       top: var(--check-payee-top);
       left: var(--check-payee-left);
       font-size: 12pt;
     }
-    .print-check .pc-words {
+    .print-checks .pc-words {
       top: var(--check-words-top);
       left: var(--check-words-left);
       width: var(--check-words-width);
@@ -539,7 +605,7 @@
       font-size: 10pt;
       line-height: 1.2;
     }
-    .print-check .pc-amt {
+    .print-checks .pc-amt {
       top: var(--check-amount-top);
       right: var(--check-amount-right);
       font-weight: bold;
@@ -550,18 +616,29 @@
       html, body { background: white; padding: 0; margin: 0; }
       .container { display: none !important; }
 
-      body.printing-check {
+      body.printing-checks .print-checks { display: block !important; }
+      body.printing-checks .print-check-page {
         width: var(--check-page-w);
         height: var(--check-page-h);
+        position: relative;
         overflow: hidden;
+        page-break-after: always;
+        break-after: page;
       }
-      body.printing-check .print-check {
-        display: block !important;
+      body.printing-checks .print-check-page:last-child {
+        page-break-after: auto;
+        break-after: auto;
+      }
+      body.printing-checks .pc-overlay {
         position: absolute;
         top: 0;
         left: 0;
+        width: var(--check-w);
+        height: var(--check-h);
         transform-origin: 0 0;
         transform: translate(var(--check-page-w), 0) rotate(90deg);
+        font-family: "Courier New", Courier, monospace;
+        color: #000;
       }
 
       body.printing-report .print-report {
@@ -577,6 +654,8 @@
 
     <div class="tabs">
       <button type="button" class="tab active" data-tab="enter">Enter</button>
+      <button type="button" class="tab" data-tab="print">Print</button>
+      <button type="button" class="tab" data-tab="addnum">Add #</button>
       <button type="button" class="tab" data-tab="viewer">Viewer</button>
       <button type="button" class="tab" data-tab="data">Data</button>
       <button type="button" class="tab" data-tab="report">Report</button>
@@ -609,8 +688,8 @@
               <input type="date" id="checkDate" required>
             </div>
             <div class="field">
-              <label for="checkNumber">Check Number</label>
-              <input type="text" id="checkNumber" inputmode="numeric" required>
+              <label for="checkNumber">Check Number <span class="opt">(optional)</span></label>
+              <input type="text" id="checkNumber" inputmode="numeric">
             </div>
           </div>
 
@@ -732,14 +811,55 @@
       </div>
       <div id="rResults"></div>
     </div>
+
+    <!-- ==================== For Printing ==================== -->
+    <div class="tab-panel hidden" id="tab-print">
+      <div class="card">
+        <div class="list-bar">
+          <div class="list-bar-summary"><strong id="printPendingCount">0</strong> pending print</div>
+          <div class="list-bar-actions">
+            <button type="button" id="printReloadBtn">Reload</button>
+          </div>
+        </div>
+        <div id="printResults"></div>
+        <div class="toast" id="printToast"></div>
+      </div>
+    </div>
+
+    <!-- ==================== Add Check # ==================== -->
+    <div class="tab-panel hidden" id="tab-addnum">
+      <div class="card">
+        <div class="list-bar">
+          <div class="list-bar-summary"><strong id="addnumPendingCount">0</strong> pending number</div>
+          <div class="list-bar-actions">
+            <button type="button" id="addnumReloadBtn">Reload</button>
+          </div>
+        </div>
+
+        <label class="toggle-row" for="seriesMode">
+          <span class="switch">
+            <input type="checkbox" id="seriesMode">
+            <span class="slider"></span>
+          </span>
+          <span class="toggle-label">
+            <strong>Series</strong>
+            <span class="hint">Fill the selected rows with sequential check numbers starting from the number below.</span>
+          </span>
+        </label>
+        <div class="series-input hidden" id="seriesInputWrap">
+          <input type="text" id="seriesStart" placeholder="Starting number (e.g. 0001234)" inputmode="numeric">
+          <button type="button" id="seriesApplyBtn">Apply</button>
+        </div>
+
+        <div id="addnumResults"></div>
+        <div class="toast" id="addnumToast"></div>
+      </div>
+    </div>
   </div>
 
-  <div class="print-check" id="printCheck" aria-hidden="true">
-    <div class="pc-field pc-date"  id="pcDate"></div>
-    <div class="pc-field pc-payee" id="pcPayee"></div>
-    <div class="pc-field pc-words" id="pcWords"></div>
-    <div class="pc-field pc-amt"   id="pcAmt"></div>
-  </div>
+  <!-- Batch check printout: dynamically filled with one <.print-check-page>
+       per selected check. Each page carries its own rotated overlay. -->
+  <div class="print-checks" id="printChecks" aria-hidden="true"></div>
 
   <div class="print-report" id="printReport" aria-hidden="true">
     <div class="report-header">
@@ -783,7 +903,9 @@
       banks: [],
       viewerMatches: [],
       editingRowIndex: null,
-      reportChecks: []
+      reportChecks: [],
+      printPending: [],   // For Printing tab
+      numberPending: []   // Add Check # tab
     };
 
     document.addEventListener('DOMContentLoaded', async () => {
@@ -797,6 +919,8 @@
       setupViewerTab();
       setupDataTab();
       setupReportTab();
+      setupPrintTab();
+      setupAddnumTab();
 
       try {
         await loadLists();
@@ -839,6 +963,8 @@
     function activateTab(name) {
       document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('hidden', p.id !== 'tab-' + name));
+      if (name === 'print')  loadPendingPrint().catch(err => showToast('printToast', err.message, 'error'));
+      if (name === 'addnum') loadPendingNumber().catch(err => showToast('addnumToast', err.message, 'error'));
     }
 
     // ==================== Print ====================
@@ -856,21 +982,37 @@
       }
     }
 
-    function printCheck() {
-      printPage('printing-check', 'size: 75mm 175mm; margin: 0;');
+    function printChecksBatch() {
+      printPage('printing-checks', 'size: 75mm 175mm; margin: 0;');
     }
 
     function printReport() {
       printPage('printing-report', 'size: letter; margin: 0.75in;');
     }
 
-    function fillCheck(p) {
-      const amt = Number(p.amount);
-      document.getElementById('pcDate').textContent = formatCheckDate(p.checkDate);
-      document.getElementById('pcPayee').textContent = String(p.supplier).toUpperCase();
-      document.getElementById('pcWords').textContent = pesoToWords(amt);
-      document.getElementById('pcAmt').textContent =
-        '**' + amt.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '**';
+    // Build one <.print-check-page> per selected check and populate its
+    // rotated overlay with date, payee, amount-in-words, amount-in-figures.
+    function fillChecksBatch(checks) {
+      const container = document.getElementById('printChecks');
+      container.innerHTML = (checks || []).map(c => {
+        const amt = Number(c.amount) || 0;
+        const dateText = formatCheckDate(c.checkDate || '');
+        const payeeText = String(c.supplier || '').toUpperCase();
+        const wordsText = pesoToWords(amt);
+        const amtText = '**' + amt.toLocaleString('en-PH', {
+          minimumFractionDigits: 2, maximumFractionDigits: 2
+        }) + '**';
+        return `
+          <div class="print-check-page">
+            <div class="pc-overlay">
+              <div class="pc-field pc-date">${escapeHtml(dateText)}</div>
+              <div class="pc-field pc-payee">${escapeHtml(payeeText)}</div>
+              <div class="pc-field pc-words">${escapeHtml(wordsText)}</div>
+              <div class="pc-field pc-amt">${escapeHtml(amtText)}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
     }
 
     function formatCheckDate(iso) {
@@ -945,7 +1087,6 @@
     function validate(p) {
       if (!p.supplier) return 'Supplier is required.';
       if (!p.checkDate) return 'Check date is required.';
-      if (!p.checkNumber) return 'Check number is required.';
       if (!p.bank) return 'Bank is required.';
       const n = Number(p.amount);
       if (!isFinite(n) || n <= 0) return 'Amount must be a positive number.';
@@ -956,8 +1097,8 @@
       const payload = collectEnterPayload();
       const err = validate(payload);
       if (err) { showToast('enterToast', err, 'error'); return; }
-      fillCheck(payload);
-      printCheck();
+      fillChecksBatch([payload]);
+      printChecksBatch();
     }
 
     async function onEnterPrintSave() {
@@ -966,8 +1107,8 @@
       if (err) { showToast('enterToast', err, 'error'); return; }
 
       // Print first — the dialog opens instantly.
-      fillCheck(payload);
-      printCheck();
+      fillChecksBatch([payload]);
+      printChecksBatch();
 
       // Optimistic save: show success and reset before the network call returns.
       hideToast('enterToast');
@@ -1064,9 +1205,24 @@
 
     function renderViewerMatches() {
       const container = document.getElementById('vResults');
-      container.innerHTML = state.viewerMatches.map((c, i) =>
+      const bar = state.viewerMatches.length > 1 ? `
+        <div class="card" style="padding:12px 16px;">
+          <div class="list-bar" style="margin:0;">
+            <div class="list-bar-summary"><strong>${state.viewerMatches.length}</strong> matches</div>
+            <div class="list-bar-actions">
+              <button type="button" id="vPrintAllBtn">Print All</button>
+            </div>
+          </div>
+        </div>
+      ` : '';
+      container.innerHTML = bar + state.viewerMatches.map((c, i) =>
         state.editingRowIndex === c.rowIndex ? renderEditCard(c, i) : renderViewCard(c, i)
       ).join('');
+      const allBtn = container.querySelector('#vPrintAllBtn');
+      if (allBtn) allBtn.addEventListener('click', () => {
+        fillChecksBatch(state.viewerMatches);
+        printChecksBatch();
+      });
       attachViewerHandlers();
     }
 
@@ -1075,7 +1231,7 @@
         <div class="check-row"><span class="lbl">Supplier</span><span class="val">${escapeHtml(c.supplier)}</span></div>
         <div class="check-row"><span class="lbl">Order Month</span><span class="val">${escapeHtml(formatOrderMonth(c.orderMonth) || '—')}</span></div>
         <div class="check-row"><span class="lbl">Check Date</span><span class="val">${escapeHtml(c.checkDate)}</span></div>
-        <div class="check-row"><span class="lbl">Check #</span><span class="val">${escapeHtml(c.checkNumber)}</span></div>
+        <div class="check-row"><span class="lbl">Check #</span><span class="val">${escapeHtml(c.checkNumber || '—')}</span></div>
         <div class="check-row"><span class="lbl">Bank</span><span class="val">${escapeHtml(c.bank)}</span></div>
         <div class="check-row"><span class="lbl">Amount</span><span class="val">&#8369;${fmtAmt(c.amount)}</span></div>
         <div class="check-row"><span class="lbl">Notes</span><span class="val">${escapeHtml(c.notes || '—')}</span></div>
@@ -1108,7 +1264,7 @@
           </div>
           <div class="field">
             <label>Check Number</label>
-            <input type="text" data-edit="checkNumber" inputmode="numeric" value="${escapeAttr(c.checkNumber)}" required>
+            <input type="text" data-edit="checkNumber" inputmode="numeric" value="${escapeAttr(c.checkNumber)}">
           </div>
         </div>
         <div class="field">
@@ -1216,8 +1372,8 @@
       } else {
         p = state.viewerMatches[i];
       }
-      fillCheck(p);
-      printCheck();
+      fillChecksBatch([p]);
+      printChecksBatch();
     }
 
     // ==================== Check Data tab ====================
@@ -1506,6 +1662,201 @@
         </tr>
       `).join('');
       document.getElementById('prTbody').innerHTML = rows + totalRow;
+    }
+
+    // ==================== For Printing tab ====================
+
+    function setupPrintTab() {
+      document.getElementById('printReloadBtn').addEventListener('click', () =>
+        loadPendingPrint().catch(err => showToast('printToast', err.message, 'error'))
+      );
+    }
+
+    async function loadPendingPrint() {
+      const btn = document.getElementById('printReloadBtn');
+      btn.disabled = true; btn.textContent = 'Loading...';
+      hideToast('printToast');
+      try {
+        const data = await api('getPendingPrint');
+        state.printPending = data.checks || [];
+        renderPrintPending();
+      } finally {
+        btn.disabled = false; btn.textContent = 'Reload';
+      }
+    }
+
+    function renderPrintPending() {
+      const list = state.printPending;
+      document.getElementById('printPendingCount').textContent = list.length;
+      const container = document.getElementById('printResults');
+      if (!list.length) {
+        container.innerHTML = '<p style="color:var(--muted); font-size:14px; margin:12px 0 0;">Nothing to print right now.</p>';
+        return;
+      }
+      container.innerHTML = `
+        <div class="report-bar">
+          <div class="summary"><strong id="printSelCount">0</strong> selected · <strong id="printSelTotal">&#8369;0.00</strong></div>
+          <div class="report-bar-actions">
+            <button type="button" id="printSelAll">All</button>
+            <button type="button" id="printSelNone">None</button>
+          </div>
+        </div>
+        <div class="report-list">
+          ${list.map((c, i) => `
+            <label class="report-item">
+              <input type="checkbox" checked data-i="${i}">
+              <div class="report-item-body">
+                <div><strong>${escapeHtml(c.checkDate || '(no date)')}</strong> · ${escapeHtml(c.supplier)}</div>
+                <div class="meta">${escapeHtml(c.bank)}${c.orderMonth ? ' · ' + escapeHtml(formatOrderMonth(c.orderMonth)) : ''}${c.notes ? ' · ' + escapeHtml(c.notes) : ''}</div>
+              </div>
+              <div class="report-item-amt">&#8369;${fmtAmt(c.amount)}</div>
+            </label>
+          `).join('')}
+        </div>
+        <button type="button" id="printSelectedBtn">Print Selected</button>
+      `;
+
+      const refreshSummary = () => {
+        const checked = Array.from(container.querySelectorAll('input[type=checkbox]:checked'));
+        const total = checked.reduce((s, cb) => s + list[Number(cb.dataset.i)].amount, 0);
+        container.querySelector('#printSelCount').textContent = checked.length;
+        container.querySelector('#printSelTotal').innerHTML = '&#8369;' + fmtAmt(total);
+      };
+      container.querySelector('.report-list').addEventListener('change', refreshSummary);
+      container.querySelector('#printSelAll').addEventListener('click', () => {
+        container.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = true);
+        refreshSummary();
+      });
+      container.querySelector('#printSelNone').addEventListener('click', () => {
+        container.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = false);
+        refreshSummary();
+      });
+      container.querySelector('#printSelectedBtn').addEventListener('click', onPrintSelected);
+      refreshSummary();
+    }
+
+    function onPrintSelected() {
+      const container = document.getElementById('printResults');
+      const checked = Array.from(container.querySelectorAll('input[type=checkbox]:checked'));
+      const selected = checked.map(cb => state.printPending[Number(cb.dataset.i)]);
+      if (!selected.length) {
+        showToast('printToast', 'Select at least one check to print.', 'error');
+        return;
+      }
+
+      // Print all selected on one combined print job (one page per check).
+      fillChecksBatch(selected);
+      printChecksBatch();
+
+      // Optimistically move them out of the Printing list so the UI advances.
+      const rowIndices = selected.map(c => c.rowIndex);
+      state.printPending = state.printPending.filter(c => rowIndices.indexOf(c.rowIndex) === -1);
+      renderPrintPending();
+      showToast('printToast', 'Marked ' + rowIndices.length + ' check(s) as printed.', 'success');
+
+      // Persist Printed=true in the background so they appear in Add # next.
+      api('markPrinted', { rowIndices }).catch(err => {
+        showToast('printToast', 'Failed to mark printed: ' + (err.message || err), 'error');
+      });
+    }
+
+    // ==================== Add Check # tab ====================
+
+    function setupAddnumTab() {
+      document.getElementById('addnumReloadBtn').addEventListener('click', () =>
+        loadPendingNumber().catch(err => showToast('addnumToast', err.message, 'error'))
+      );
+      const seriesCb = document.getElementById('seriesMode');
+      const wrap = document.getElementById('seriesInputWrap');
+      seriesCb.addEventListener('change', () => {
+        wrap.classList.toggle('hidden', !seriesCb.checked);
+        if (seriesCb.checked) document.getElementById('seriesStart').focus();
+      });
+      document.getElementById('seriesApplyBtn').addEventListener('click', applySeries);
+    }
+
+    async function loadPendingNumber() {
+      const btn = document.getElementById('addnumReloadBtn');
+      btn.disabled = true; btn.textContent = 'Loading...';
+      hideToast('addnumToast');
+      try {
+        const data = await api('getPendingNumber');
+        state.numberPending = data.checks || [];
+        renderNumberPending();
+      } finally {
+        btn.disabled = false; btn.textContent = 'Reload';
+      }
+    }
+
+    function renderNumberPending() {
+      const list = state.numberPending;
+      document.getElementById('addnumPendingCount').textContent = list.length;
+      const container = document.getElementById('addnumResults');
+      if (!list.length) {
+        container.innerHTML = '<p style="color:var(--muted); font-size:14px; margin:12px 0 0;">No printed checks awaiting a number.</p>';
+        return;
+      }
+      container.innerHTML = `
+        ${list.map((c, i) => `
+          <div class="addnum-row">
+            <input type="checkbox" checked data-i="${i}">
+            <div class="addnum-info">
+              <strong>${escapeHtml(c.checkDate || '(no date)')}</strong> · ${escapeHtml(c.supplier)}
+              <div class="meta">${escapeHtml(c.bank)} · &#8369;${fmtAmt(c.amount)}${c.orderMonth ? ' · ' + escapeHtml(formatOrderMonth(c.orderMonth)) : ''}</div>
+            </div>
+            <input type="text" class="addnum-input" data-i="${i}" placeholder="Check #" inputmode="numeric">
+          </div>
+        `).join('')}
+        <button type="button" id="saveNumbersBtn" style="margin-top:12px;">Save Numbers</button>
+      `;
+      container.querySelector('#saveNumbersBtn').addEventListener('click', onSaveNumbers);
+    }
+
+    function applySeries() {
+      const start = document.getElementById('seriesStart').value.trim();
+      if (!start) { showToast('addnumToast', 'Enter a starting check number.', 'error'); return; }
+      if (!/\d/.test(start)) { showToast('addnumToast', 'Starting number must contain digits.', 'error'); return; }
+      hideToast('addnumToast');
+
+      const container = document.getElementById('addnumResults');
+      const checkboxes = Array.from(container.querySelectorAll('input[type=checkbox]'));
+      let current = start;
+      let filled = 0;
+      checkboxes.forEach(cb => {
+        if (!cb.checked) return;
+        const input = container.querySelector('.addnum-input[data-i="' + cb.dataset.i + '"]');
+        input.value = current;
+        current = incrementCheckNumber(current);
+        filled++;
+      });
+      if (!filled) {
+        showToast('addnumToast', 'Nothing selected to apply the series to.', 'error');
+      }
+    }
+
+    function onSaveNumbers() {
+      const container = document.getElementById('addnumResults');
+      const updates = [];
+      state.numberPending.forEach((c, i) => {
+        const input = container.querySelector('.addnum-input[data-i="' + i + '"]');
+        if (!input) return;
+        const num = input.value.trim();
+        if (num) updates.push({ rowIndex: c.rowIndex, checkNumber: num });
+      });
+      if (!updates.length) {
+        showToast('addnumToast', 'No check numbers entered.', 'error');
+        return;
+      }
+
+      // Optimistic: remove numbered rows from the list immediately.
+      const indices = updates.map(u => u.rowIndex);
+      state.numberPending = state.numberPending.filter(c => indices.indexOf(c.rowIndex) === -1);
+      renderNumberPending();
+      showToast('addnumToast', 'Saved ' + updates.length + ' check number(s).', 'success');
+
+      api('setCheckNumbers', { updates }).catch(err => {
+        showToast('addnumToast', 'Save failed: ' + (err.message || err), 'error');
+      });
     }
 
     // ==================== Shared utilities ====================

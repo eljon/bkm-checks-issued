@@ -13,7 +13,7 @@ const SHARED_SECRET = '';
 const SHEET_CHECKS = 'Checks';
 const SHEET_SUPPLIERS = 'Suppliers';
 const SHEET_BANKS = 'Banks';
-const CHECK_HEADERS = ['Timestamp', 'Supplier', 'Order Month', 'Check Date', 'Check Number', 'Bank', 'Amount', 'Notes'];
+const CHECK_HEADERS = ['Timestamp', 'Supplier', 'Order Month', 'Check Date', 'Check Number', 'Bank', 'Amount', 'Notes', 'Printed'];
 
 function doGet() {
   return json({ ok: true, message: 'BKM Checks API. POST JSON to use.' });
@@ -26,12 +26,16 @@ function doPost(e) {
       return json({ error: 'unauthorized' });
     }
     switch (req.action) {
-      case 'getLists':     return json(getLists_());
-      case 'saveCheck':    return json(saveCheck_(req.payload || {}));
-      case 'findChecks':   return json(findChecks_(req.payload || {}));
-      case 'updateCheck':  return json(updateCheck_(req.payload || {}));
-      case 'searchChecks': return json(searchChecks_(req.payload || {}));
-      default:             return json({ error: 'unknown action: ' + req.action });
+      case 'getLists':         return json(getLists_());
+      case 'saveCheck':        return json(saveCheck_(req.payload || {}));
+      case 'findChecks':       return json(findChecks_(req.payload || {}));
+      case 'updateCheck':      return json(updateCheck_(req.payload || {}));
+      case 'searchChecks':     return json(searchChecks_(req.payload || {}));
+      case 'getPendingPrint':  return json(getPendingPrint_());
+      case 'getPendingNumber': return json(getPendingNumber_());
+      case 'markPrinted':      return json(markPrinted_(req.payload || {}));
+      case 'setCheckNumbers':  return json(setCheckNumbers_(req.payload || {}));
+      default:                 return json({ error: 'unknown action: ' + req.action });
     }
   } catch (err) {
     return json({ error: (err && err.message) || String(err) });
@@ -59,7 +63,6 @@ function saveCheck_(p) {
 
   if (!supplier) throw new Error('Supplier is required.');
   if (!bank) throw new Error('Bank is required.');
-  if (!checkNumber) throw new Error('Check number is required.');
   if (!checkDate) throw new Error('Check date is required.');
   if (!isFinite(amount) || amount <= 0) throw new Error('Amount must be a positive number.');
 
@@ -71,10 +74,10 @@ function saveCheck_(p) {
 
   const row = checks.getLastRow() + 1;
   checks.getRange(row, 1, 1, CHECK_HEADERS.length).setValues([[
-    new Date(), supplier, orderMonth, checkDate, checkNumber, bank, amount, notes
+    new Date(), supplier, orderMonth, checkDate, checkNumber, bank, amount, notes, false
   ]]);
 
-  return { ok: true };
+  return { ok: true, rowIndex: row };
 }
 
 function findChecks_(p) {
@@ -104,7 +107,6 @@ function updateCheck_(p) {
 
   if (!supplier) throw new Error('Supplier is required.');
   if (!bank) throw new Error('Bank is required.');
-  if (!checkNumber) throw new Error('Check number is required.');
   if (!checkDate) throw new Error('Check date is required.');
   if (!isFinite(amount) || amount <= 0) throw new Error('Amount must be a positive number.');
 
@@ -115,9 +117,12 @@ function updateCheck_(p) {
   addIfNew_(SHEET_SUPPLIERS, supplier);
   addIfNew_(SHEET_BANKS, bank);
 
-  const originalTimestamp = checks.getRange(rowIndex, 1).getValue();
+  const existing = checks.getRange(rowIndex, 1, 1, CHECK_HEADERS.length).getValues()[0];
+  const originalTimestamp = existing[0];
+  const originalPrinted = Boolean(existing[8]);
+
   checks.getRange(rowIndex, 1, 1, CHECK_HEADERS.length).setValues([[
-    originalTimestamp || new Date(), supplier, orderMonth, checkDate, checkNumber, bank, amount, notes
+    originalTimestamp || new Date(), supplier, orderMonth, checkDate, checkNumber, bank, amount, notes, originalPrinted
   ]]);
 
   return { ok: true };
@@ -143,6 +148,50 @@ function searchChecks_(p) {
   return { checks };
 }
 
+function getPendingPrint_() {
+  ensureSheets_();
+  const rows = readChecks_();
+  const checks = rows.map(r => rowToCheck_(r.row, r.rowIndex))
+    .filter(c => !c.checkNumber && !c.printed)
+    .sort((a, b) => (a.checkDate || '').localeCompare(b.checkDate || ''));
+  return { checks };
+}
+
+function getPendingNumber_() {
+  ensureSheets_();
+  const rows = readChecks_();
+  const checks = rows.map(r => rowToCheck_(r.row, r.rowIndex))
+    .filter(c => !c.checkNumber && c.printed)
+    .sort((a, b) => (a.checkDate || '').localeCompare(b.checkDate || ''));
+  return { checks };
+}
+
+function markPrinted_(p) {
+  ensureSheets_();
+  const rowIndices = (p.rowIndices || []).map(Number).filter(n => n >= 2);
+  if (!rowIndices.length) return { ok: true, count: 0 };
+
+  const checks = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_CHECKS);
+  rowIndices.forEach(idx => {
+    checks.getRange(idx, 9).setValue(true); // column 9 = Printed
+  });
+  return { ok: true, count: rowIndices.length };
+}
+
+function setCheckNumbers_(p) {
+  ensureSheets_();
+  const updates = (p.updates || [])
+    .map(u => ({ rowIndex: Number(u.rowIndex), checkNumber: String(u.checkNumber || '').trim() }))
+    .filter(u => u.rowIndex >= 2 && u.checkNumber);
+  if (!updates.length) return { ok: true, count: 0 };
+
+  const checks = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_CHECKS);
+  updates.forEach(u => {
+    checks.getRange(u.rowIndex, 5).setValue(u.checkNumber); // column 5 = Check Number
+  });
+  return { ok: true, count: updates.length };
+}
+
 function readChecks_() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_CHECKS);
   const lastRow = sheet.getLastRow();
@@ -158,10 +207,11 @@ function rowToCheck_(row, rowIndex) {
     supplier: String(row[1] || ''),
     orderMonth: formatYearMonth_(row[2]),
     checkDate: formatDate_(row[3]),
-    checkNumber: String(row[4] || ''),
+    checkNumber: String(row[4] || '').trim(),
     bank: String(row[5] || ''),
     amount: Number(row[6]) || 0,
-    notes: String(row[7] || '')
+    notes: String(row[7] || ''),
+    printed: Boolean(row[8])
   };
 }
 
@@ -188,7 +238,7 @@ function formatDate_(v) {
 // existing spreadsheets. Each version runs the migration once per Sheet
 // (tracked in document properties) and then short-circuits on every
 // subsequent call so doPost stays fast.
-const SCHEMA_VERSION = 'v4';
+const SCHEMA_VERSION = 'v5';
 const CACHE_TTL_SEC = 600; // 10 minutes
 
 function ensureSheets_() {
@@ -248,8 +298,7 @@ function backfillListFromChecks_(checks, listSheetName, columnIndex) {
   const lastRow = checks.getLastRow();
   if (lastRow < 2) return;
 
-  // Unique non-empty values currently in the Checks column.
-  const seenInChecks = new Map(); // lower -> original casing (first occurrence)
+  const seenInChecks = new Map();
   const checkValues = checks.getRange(2, columnIndex, lastRow - 1, 1).getValues();
   for (let i = 0; i < checkValues.length; i++) {
     const v = String(checkValues[i][0] || '').trim();
@@ -258,7 +307,6 @@ function backfillListFromChecks_(checks, listSheetName, columnIndex) {
     if (!seenInChecks.has(k)) seenInChecks.set(k, v);
   }
 
-  // Whatever already exists in the list tab.
   const existingLower = new Set();
   const listLastRow = listSheet.getLastRow();
   if (listLastRow >= 2) {
@@ -269,7 +317,6 @@ function backfillListFromChecks_(checks, listSheetName, columnIndex) {
     }
   }
 
-  // Append rows for anything missing.
   const missing = [];
   seenInChecks.forEach((original, lower) => {
     if (!existingLower.has(lower)) missing.push([original]);
@@ -284,18 +331,26 @@ function backfillListFromChecks_(checks, listSheetName, columnIndex) {
 function migrateChecksHeader_(checks) {
   const lastCol = Math.max(checks.getLastColumn(), 1);
   const header = checks.getRange(1, 1, 1, lastCol).getValues()[0];
+
+  // v4: Add Order Month at position 3 if missing.
   if (header.indexOf('Order Month') === -1) {
-    // Insert empty Order Month column right after Supplier (column 2).
     checks.insertColumnAfter(2);
     checks.getRange(1, 3).setValue('Order Month').setFontWeight('bold');
   }
+
+  // v5: Add Printed column at position 9 if missing.
+  const headerNow = checks.getRange(1, 1, 1, Math.max(checks.getLastColumn(), 1)).getValues()[0];
+  if (headerNow.indexOf('Printed') === -1) {
+    checks.getRange(1, CHECK_HEADERS.length).setValue('Printed').setFontWeight('bold');
+  }
+
   // Sync the header row with the canonical headers in case anything drifted.
   checks.getRange(1, 1, 1, CHECK_HEADERS.length)
     .setValues([CHECK_HEADERS])
     .setFontWeight('bold');
 
-  // Rewrite any Order Month cells that Sheets auto-parsed into Date values
-  // back as plain "YYYY-MM" text so equality filtering works.
+  // v4 cleanup: rewrite any Order Month cells that Sheets auto-parsed into Date
+  // values back as plain "YYYY-MM" text so equality filtering works.
   const lastRow = checks.getLastRow();
   if (lastRow >= 2) {
     const range = checks.getRange(2, 3, lastRow - 1, 1);
