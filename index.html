@@ -112,14 +112,29 @@
 
     .toast {
       margin-top: 14px;
-      padding: 10px 12px;
+      padding: 12px 14px;
       border-radius: 6px;
       font-size: 14px;
+      font-weight: 500;
       display: none;
+      border: 1px solid transparent;
+      animation: toast-in 0.15s ease-out;
     }
     .toast.show { display: block; }
-    .toast.success { background: #d1fae5; color: var(--success); }
-    .toast.error { background: #fee2e2; color: var(--error); }
+    .toast.success {
+      background: #d1fae5;
+      color: var(--success);
+      border-color: #86efac;
+    }
+    .toast.error {
+      background: #fee2e2;
+      color: var(--error);
+      border-color: #fca5a5;
+    }
+    @keyframes toast-in {
+      from { transform: translateY(-4px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
 
     .suggestions {
       position: absolute;
@@ -1110,14 +1125,16 @@
       fillChecksBatch([payload]);
       printChecksBatch();
 
-      // Optimistic save: show success and reset before the network call returns.
+      // Optimistic save: show pending state and reset before the network call returns.
       hideToast('enterToast');
-      showToast('enterToast', 'Saved.', 'success');
+      showToast('enterToast', 'Saving ' + enterSummary(payload) + '…', 'success');
       bumpLocalLists(payload);
       resetEnterForm(payload);
 
-      api('saveCheck', payload).catch(err => {
-        showToast('enterToast', 'Save failed: ' + (err.message || err) + ' — data NOT saved.', 'error');
+      api('saveCheck', payload).then(() => {
+        showToast('enterToast', '✓ Saved — ' + enterSummary(payload), 'success');
+      }).catch(err => {
+        showToast('enterToast', '✗ Save failed: ' + (err.message || err) + ' — data NOT saved.', 'error');
       });
     }
 
@@ -1127,15 +1144,25 @@
       const err = validate(payload);
       if (err) { showToast('enterToast', err, 'error'); return; }
 
-      // Optimistic: pretend the save succeeded so the UI moves on immediately.
+      // Optimistic UI: reset immediately so the next check can be typed.
       hideToast('enterToast');
-      showToast('enterToast', 'Saved.', 'success');
+      showToast('enterToast', 'Saving ' + enterSummary(payload) + '…', 'success');
       bumpLocalLists(payload);
       resetEnterForm(payload);
 
-      api('saveCheck', payload).catch(err => {
-        showToast('enterToast', 'Save failed: ' + (err.message || err) + ' — data NOT saved.', 'error');
+      api('saveCheck', payload).then(() => {
+        showToast('enterToast', '✓ Saved — ' + enterSummary(payload), 'success');
+      }).catch(err => {
+        showToast('enterToast', '✗ Save failed: ' + (err.message || err) + ' — data NOT saved.', 'error');
       });
+    }
+
+    function enterSummary(p) {
+      const amt = Number(p.amount);
+      const amtStr = isFinite(amt)
+        ? '₱' + amt.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : p.amount;
+      return (p.supplier || '?') + ' · ' + amtStr + (p.checkNumber ? ' · #' + p.checkNumber : '');
     }
 
     function bumpLocalLists(payload) {
@@ -1946,13 +1973,33 @@
       input.addEventListener('focus', () => { input.value = input.value.replace(/,/g, ''); });
     }
 
+    const _toastTimers = {};
     function showToast(id, msg, kind) {
       const t = document.getElementById(id);
+      if (!t) return;
       t.textContent = msg;
       t.className = 'toast show ' + kind;
-      if (kind === 'success') setTimeout(() => hideToast(id), 3000);
+      if (_toastTimers[id]) {
+        clearTimeout(_toastTimers[id]);
+        _toastTimers[id] = null;
+      }
+      if (kind === 'success') {
+        _toastTimers[id] = setTimeout(() => {
+          hideToast(id);
+          _toastTimers[id] = null;
+        }, 5000);
+      }
+      // Error toasts stay until the next showToast/hideToast.
     }
-    function hideToast(id) { document.getElementById(id).className = 'toast'; }
+    function hideToast(id) {
+      const t = document.getElementById(id);
+      if (!t) return;
+      t.className = 'toast';
+      if (_toastTimers[id]) {
+        clearTimeout(_toastTimers[id]);
+        _toastTimers[id] = null;
+      }
+    }
 
     function fmtAmt(n) {
       return Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
