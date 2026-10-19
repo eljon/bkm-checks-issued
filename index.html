@@ -702,7 +702,6 @@
     <div class="tabs">
       <button type="button" class="tab active" data-tab="enter">Enter</button>
       <button type="button" class="tab" data-tab="print">Print</button>
-      <button type="button" class="tab" data-tab="addnum">Add #</button>
       <button type="button" class="tab" data-tab="viewer">Viewer</button>
       <button type="button" class="tab" data-tab="data">Data</button>
       <button type="button" class="tab" data-tab="report">Report</button>
@@ -868,20 +867,6 @@
             <button type="button" id="printReloadBtn">Reload</button>
           </div>
         </div>
-        <div id="printResults"></div>
-        <div class="toast" id="printToast"></div>
-      </div>
-    </div>
-
-    <!-- ==================== Add Check # ==================== -->
-    <div class="tab-panel hidden" id="tab-addnum">
-      <div class="card">
-        <div class="list-bar">
-          <div class="list-bar-summary"><strong id="addnumPendingCount">0</strong> pending number</div>
-          <div class="list-bar-actions">
-            <button type="button" id="addnumReloadBtn">Reload</button>
-          </div>
-        </div>
 
         <label class="toggle-row" for="seriesMode">
           <span class="switch">
@@ -890,7 +875,7 @@
           </span>
           <span class="toggle-label">
             <strong>Series</strong>
-            <span class="hint">Fill the selected rows with sequential check numbers starting from the number below.</span>
+            <span class="hint">Auto-fill the check numbers of selected rows starting from the number below.</span>
           </span>
         </label>
         <div class="series-input hidden" id="seriesInputWrap">
@@ -898,8 +883,8 @@
           <button type="button" id="seriesApplyBtn">Apply</button>
         </div>
 
-        <div id="addnumResults"></div>
-        <div class="toast" id="addnumToast"></div>
+        <div id="printResults"></div>
+        <div class="toast" id="printToast"></div>
       </div>
     </div>
   </div>
@@ -951,8 +936,7 @@
       viewerMatches: [],
       editingRowIndex: null,
       reportChecks: [],
-      printPending: [],   // For Printing tab
-      numberPending: []   // Add Check # tab
+      printPending: []    // For Printing tab
     };
 
     document.addEventListener('DOMContentLoaded', async () => {
@@ -967,7 +951,6 @@
       setupDataTab();
       setupReportTab();
       setupPrintTab();
-      setupAddnumTab();
 
       try {
         await loadLists();
@@ -1010,8 +993,7 @@
     function activateTab(name) {
       document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('hidden', p.id !== 'tab-' + name));
-      if (name === 'print')  loadPendingPrint().catch(err => showToast('printToast', err.message, 'error'));
-      if (name === 'addnum') loadPendingNumber().catch(err => showToast('addnumToast', err.message, 'error'));
+      if (name === 'print') loadPendingPrint().catch(err => showToast('printToast', err.message, 'error'));
     }
 
     // ==================== Print ====================
@@ -1729,6 +1711,13 @@
       document.getElementById('printReloadBtn').addEventListener('click', () =>
         loadPendingPrint().catch(err => showToast('printToast', err.message, 'error'))
       );
+      const seriesCb = document.getElementById('seriesMode');
+      const wrap = document.getElementById('seriesInputWrap');
+      seriesCb.addEventListener('change', () => {
+        wrap.classList.toggle('hidden', !seriesCb.checked);
+        if (seriesCb.checked) document.getElementById('seriesStart').focus();
+      });
+      document.getElementById('seriesApplyBtn').addEventListener('click', applySeries);
     }
 
     async function loadPendingPrint() {
@@ -1749,7 +1738,7 @@
       document.getElementById('printPendingCount').textContent = list.length;
       const container = document.getElementById('printResults');
       if (!list.length) {
-        container.innerHTML = '<p style="color:var(--muted); font-size:14px; margin:12px 0 0;">Nothing to print right now.</p>';
+        container.innerHTML = '<p style="color:var(--muted); font-size:14px; margin:12px 0 0;">Nothing pending.</p>';
         return;
       }
       container.innerHTML = `
@@ -1760,18 +1749,16 @@
             <button type="button" id="printSelNone">None</button>
           </div>
         </div>
-        <div class="report-list">
-          ${list.map((c, i) => `
-            <label class="report-item">
-              <input type="checkbox" checked data-i="${i}">
-              <div class="report-item-body">
-                <div><strong>${escapeHtml(c.checkDate || '(no date)')}</strong> · ${escapeHtml(c.supplier)}</div>
-                <div class="meta">${escapeHtml(c.bank)}${c.orderMonth ? ' · ' + escapeHtml(formatOrderMonth(c.orderMonth)) : ''}${c.notes ? ' · ' + escapeHtml(c.notes) : ''}</div>
-              </div>
-              <div class="report-item-amt">&#8369;${fmtAmt(c.amount)}</div>
-            </label>
-          `).join('')}
-        </div>
+        ${list.map((c, i) => `
+          <div class="addnum-row">
+            <input type="checkbox" checked data-i="${i}">
+            <div class="addnum-info">
+              <strong>${escapeHtml(c.checkDate || '(no date)')}</strong> · ${escapeHtml(c.supplier)}
+              <div class="meta">${escapeHtml(c.bank)} · &#8369;${fmtAmt(c.amount)}${c.orderMonth ? ' · ' + escapeHtml(formatOrderMonth(c.orderMonth)) : ''}${c.notes ? ' · ' + escapeHtml(c.notes) : ''}</div>
+            </div>
+            <input type="text" class="addnum-input" data-i="${i}" placeholder="Check #" inputmode="numeric">
+          </div>
+        `).join('')}
         <div class="floating-action-spacer"></div>
         <div class="floating-action">
           <button type="button" id="printSelectedBtn">Print Selected</button>
@@ -1784,7 +1771,9 @@
         container.querySelector('#printSelCount').textContent = checked.length;
         container.querySelector('#printSelTotal').innerHTML = '&#8369;' + fmtAmt(total);
       };
-      container.querySelector('.report-list').addEventListener('change', refreshSummary);
+      container.addEventListener('change', e => {
+        if (e.target.matches('input[type=checkbox]')) refreshSummary();
+      });
       container.querySelector('#printSelAll').addEventListener('click', () => {
         container.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = true);
         refreshSummary();
@@ -1797,90 +1786,13 @@
       refreshSummary();
     }
 
-    function onPrintSelected() {
-      const container = document.getElementById('printResults');
-      const checked = Array.from(container.querySelectorAll('input[type=checkbox]:checked'));
-      const selected = checked.map(cb => state.printPending[Number(cb.dataset.i)]);
-      if (!selected.length) {
-        showToast('printToast', 'Select at least one check to print.', 'error');
-        return;
-      }
-
-      // Print all selected on one combined print job (one page per check).
-      fillChecksBatch(selected);
-      printChecksBatch();
-
-      // Optimistically move them out of the Printing list so the UI advances.
-      const rowIndices = selected.map(c => c.rowIndex);
-      state.printPending = state.printPending.filter(c => rowIndices.indexOf(c.rowIndex) === -1);
-      renderPrintPending();
-      showToast('printToast', 'Marked ' + rowIndices.length + ' check(s) as printed.', 'success');
-
-      // Persist Printed=true in the background so they appear in Add # next.
-      api('markPrinted', { rowIndices }).catch(err => {
-        showToast('printToast', 'Failed to mark printed: ' + (err.message || err), 'error');
-      });
-    }
-
-    // ==================== Add Check # tab ====================
-
-    function setupAddnumTab() {
-      document.getElementById('addnumReloadBtn').addEventListener('click', () =>
-        loadPendingNumber().catch(err => showToast('addnumToast', err.message, 'error'))
-      );
-      const seriesCb = document.getElementById('seriesMode');
-      const wrap = document.getElementById('seriesInputWrap');
-      seriesCb.addEventListener('change', () => {
-        wrap.classList.toggle('hidden', !seriesCb.checked);
-        if (seriesCb.checked) document.getElementById('seriesStart').focus();
-      });
-      document.getElementById('seriesApplyBtn').addEventListener('click', applySeries);
-    }
-
-    async function loadPendingNumber() {
-      const btn = document.getElementById('addnumReloadBtn');
-      btn.disabled = true; btn.textContent = 'Loading...';
-      hideToast('addnumToast');
-      try {
-        const data = await api('getPendingNumber');
-        state.numberPending = data.checks || [];
-        renderNumberPending();
-      } finally {
-        btn.disabled = false; btn.textContent = 'Reload';
-      }
-    }
-
-    function renderNumberPending() {
-      const list = state.numberPending;
-      document.getElementById('addnumPendingCount').textContent = list.length;
-      const container = document.getElementById('addnumResults');
-      if (!list.length) {
-        container.innerHTML = '<p style="color:var(--muted); font-size:14px; margin:12px 0 0;">No printed checks awaiting a number.</p>';
-        return;
-      }
-      container.innerHTML = `
-        ${list.map((c, i) => `
-          <div class="addnum-row">
-            <input type="checkbox" checked data-i="${i}">
-            <div class="addnum-info">
-              <strong>${escapeHtml(c.checkDate || '(no date)')}</strong> · ${escapeHtml(c.supplier)}
-              <div class="meta">${escapeHtml(c.bank)} · &#8369;${fmtAmt(c.amount)}${c.orderMonth ? ' · ' + escapeHtml(formatOrderMonth(c.orderMonth)) : ''}</div>
-            </div>
-            <input type="text" class="addnum-input" data-i="${i}" placeholder="Check #" inputmode="numeric">
-          </div>
-        `).join('')}
-        <button type="button" id="saveNumbersBtn" style="margin-top:12px;">Save Numbers</button>
-      `;
-      container.querySelector('#saveNumbersBtn').addEventListener('click', onSaveNumbers);
-    }
-
     function applySeries() {
       const start = document.getElementById('seriesStart').value.trim();
-      if (!start) { showToast('addnumToast', 'Enter a starting check number.', 'error'); return; }
-      if (!/\d/.test(start)) { showToast('addnumToast', 'Starting number must contain digits.', 'error'); return; }
-      hideToast('addnumToast');
+      if (!start) { showToast('printToast', 'Enter a starting check number.', 'error'); return; }
+      if (!/\d/.test(start)) { showToast('printToast', 'Starting number must contain digits.', 'error'); return; }
+      hideToast('printToast');
 
-      const container = document.getElementById('addnumResults');
+      const container = document.getElementById('printResults');
       const checkboxes = Array.from(container.querySelectorAll('input[type=checkbox]'));
       let current = start;
       let filled = 0;
@@ -1892,32 +1804,54 @@
         filled++;
       });
       if (!filled) {
-        showToast('addnumToast', 'Nothing selected to apply the series to.', 'error');
+        showToast('printToast', 'Nothing selected to apply the series to.', 'error');
       }
     }
 
-    function onSaveNumbers() {
-      const container = document.getElementById('addnumResults');
-      const updates = [];
-      state.numberPending.forEach((c, i) => {
-        const input = container.querySelector('.addnum-input[data-i="' + i + '"]');
-        if (!input) return;
-        const num = input.value.trim();
-        if (num) updates.push({ rowIndex: c.rowIndex, checkNumber: num });
-      });
-      if (!updates.length) {
-        showToast('addnumToast', 'No check numbers entered.', 'error');
+    function onPrintSelected() {
+      const container = document.getElementById('printResults');
+      const checkboxes = Array.from(container.querySelectorAll('input[type=checkbox]:checked'));
+      if (!checkboxes.length) {
+        showToast('printToast', 'Select at least one check to print.', 'error');
         return;
       }
 
-      // Optimistic: remove numbered rows from the list immediately.
-      const indices = updates.map(u => u.rowIndex);
-      state.numberPending = state.numberPending.filter(c => indices.indexOf(c.rowIndex) === -1);
-      renderNumberPending();
-      showToast('addnumToast', 'Saved ' + updates.length + ' check number(s).', 'success');
+      // Gather selected rows + each one's typed check number.
+      const selected = [];
+      const missing = [];
+      checkboxes.forEach(cb => {
+        const i = Number(cb.dataset.i);
+        const c = state.printPending[i];
+        const input = container.querySelector('.addnum-input[data-i="' + i + '"]');
+        const num = input ? input.value.trim() : '';
+        if (!num) {
+          missing.push(c);
+        } else {
+          selected.push(Object.assign({}, c, { checkNumber: num }));
+        }
+      });
 
-      api('setCheckNumbers', { updates }).catch(err => {
-        showToast('addnumToast', 'Save failed: ' + (err.message || err), 'error');
+      if (missing.length) {
+        showToast('printToast',
+          'Check number required before printing (' + missing.length + ' selected row(s) are missing one).',
+          'error');
+        return;
+      }
+
+      // Print all selected (one portrait page per check).
+      fillChecksBatch(selected);
+      printChecksBatch();
+
+      // Optimistically remove them from the pending list so the UI advances.
+      const rowIndices = selected.map(c => c.rowIndex);
+      state.printPending = state.printPending.filter(c => rowIndices.indexOf(c.rowIndex) === -1);
+      renderPrintPending();
+      showToast('printToast', 'Printed ' + rowIndices.length + ' check(s).', 'success');
+
+      // Persist check numbers + Printed=true in the background.
+      const updates = selected.map(c => ({ rowIndex: c.rowIndex, checkNumber: c.checkNumber }));
+      api('printChecks', { updates }).catch(err => {
+        showToast('printToast', 'Save failed: ' + (err.message || err) + ' — check numbers may not be stored.', 'error');
       });
     }
 

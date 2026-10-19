@@ -32,9 +32,7 @@ function doPost(e) {
       case 'updateCheck':      return json(updateCheck_(req.payload || {}));
       case 'searchChecks':     return json(searchChecks_(req.payload || {}));
       case 'getPendingPrint':  return json(getPendingPrint_());
-      case 'getPendingNumber': return json(getPendingNumber_());
-      case 'markPrinted':      return json(markPrinted_(req.payload || {}));
-      case 'setCheckNumbers':  return json(setCheckNumbers_(req.payload || {}));
+      case 'printChecks':      return json(printChecks_(req.payload || {}));
       default:                 return json({ error: 'unknown action: ' + req.action });
     }
   } catch (err) {
@@ -152,40 +150,21 @@ function getPendingPrint_() {
   ensureSheets_();
   const rows = readChecks_();
   const checks = rows.map(r => rowToCheck_(r.row, r.rowIndex))
-    .filter(c => !c.checkNumber && !c.printed && isFullyEncoded_(c))
+    .filter(c => !c.checkNumber && isFullyEncoded_(c))
     .sort((a, b) => (a.checkDate || '').localeCompare(b.checkDate || ''));
   return { checks };
 }
 
-function getPendingNumber_() {
-  ensureSheets_();
-  const rows = readChecks_();
-  const checks = rows.map(r => rowToCheck_(r.row, r.rowIndex))
-    .filter(c => !c.checkNumber && c.printed && isFullyEncoded_(c))
-    .sort((a, b) => (a.checkDate || '').localeCompare(b.checkDate || ''));
-  return { checks };
-}
-
-// A row only belongs in the Print / Add # tabs when every field other than
-// the check number is already filled in. Historical rows that are blank
-// across the board should NOT surface as pending work.
+// A row only belongs in the Print tab when every field other than the check
+// number is already filled in. Historical rows that are blank across the
+// board should NOT surface as pending work.
 function isFullyEncoded_(c) {
   return !!(c.supplier && c.bank && c.checkDate && c.amount > 0);
 }
 
-function markPrinted_(p) {
-  ensureSheets_();
-  const rowIndices = (p.rowIndices || []).map(Number).filter(n => n >= 2);
-  if (!rowIndices.length) return { ok: true, count: 0 };
-
-  const checks = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_CHECKS);
-  rowIndices.forEach(idx => {
-    checks.getRange(idx, 9).setValue(true); // column 9 = Printed
-  });
-  return { ok: true, count: rowIndices.length };
-}
-
-function setCheckNumbers_(p) {
+// Called by the Print tab when the user clicks Print Selected: save every
+// selected row's check number and flag Printed=true in one pass.
+function printChecks_(p) {
   ensureSheets_();
   const updates = (p.updates || [])
     .map(u => ({ rowIndex: Number(u.rowIndex), checkNumber: String(u.checkNumber || '').trim() }))
@@ -195,6 +174,7 @@ function setCheckNumbers_(p) {
   const checks = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_CHECKS);
   updates.forEach(u => {
     checks.getRange(u.rowIndex, 5).setValue(u.checkNumber); // column 5 = Check Number
+    checks.getRange(u.rowIndex, 9).setValue(true);          // column 9 = Printed
   });
   return { ok: true, count: updates.length };
 }
