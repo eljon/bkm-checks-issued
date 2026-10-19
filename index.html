@@ -617,26 +617,33 @@
        --check-x-offset / --check-y-offset = nudge the slot if your printer
        feeds the check slightly off-center. */
     :root {
+      /* Physical check dimensions, landscape (W x H). Common PH checks:
+           BDO:            ~175mm x 83mm
+           Security Bank:  ~175mm x 75mm
+         --check-slot-w / --check-slot-h are the same values rotated 90°
+         (what the browser sees as a portrait slot on the letter page). */
       --check-w: 175mm;
-      --check-h: 75mm;
-      --check-slot-w: 75mm;
+      --check-h: 83mm;
+      --check-slot-w: 83mm;
       --check-slot-h: 175mm;
       --check-x-offset: 0mm;
       --check-y-offset: 0mm;
 
+      /* Field positions are in LANDSCAPE check coordinates (x from left,
+         y from top). The @media print block rotates the overlay for you. */
       --check-date-top: 17mm;
-      --check-date-right: 10mm;
+      --check-date-right: 30mm;
       --check-date-spacing: 2.6mm;
 
-      --check-payee-top: 30mm;
-      --check-payee-left: 33mm;
+      --check-payee-top: 40mm;
+      --check-payee-left: 45mm;
 
-      --check-words-top: 38mm;
-      --check-words-left: 18mm;
-      --check-words-width: 95mm;
+      --check-words-top: 55mm;
+      --check-words-left: 50mm;
+      --check-words-width: 115mm;
 
-      --check-amount-top: 30mm;
-      --check-amount-right: 6mm;
+      --check-amount-top: 40mm;
+      --check-amount-right: 10mm;
     }
 
     .print-checks { display: none; }
