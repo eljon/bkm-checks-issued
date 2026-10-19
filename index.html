@@ -111,29 +111,40 @@
     button:disabled { opacity: 0.6; cursor: not-allowed; }
 
     .toast {
-      margin-top: 14px;
-      padding: 12px 14px;
-      border-radius: 6px;
-      font-size: 14px;
-      font-weight: 500;
       display: none;
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      z-index: 1000;
+      padding: 14px 20px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
       border: 1px solid transparent;
-      animation: toast-in 0.15s ease-out;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.18);
+      max-width: calc(100vw - 32px);
+      min-width: 260px;
+      text-align: center;
+      /* Static centered transform; animation only tweaks the Y offset. */
+      transform: translateX(-50%);
     }
-    .toast.show { display: block; }
+    .toast.show {
+      display: block;
+      animation: toast-slide-up 0.2s ease-out;
+    }
+    @keyframes toast-slide-up {
+      from { bottom: -40px; opacity: 0; }
+      to   { bottom: 24px;  opacity: 1; }
+    }
     .toast.success {
       background: #d1fae5;
-      color: var(--success);
-      border-color: #86efac;
+      color: #065f46;
+      border-color: #34d399;
     }
     .toast.error {
       background: #fee2e2;
-      color: var(--error);
-      border-color: #fca5a5;
-    }
-    @keyframes toast-in {
-      from { transform: translateY(-4px); opacity: 0; }
-      to   { transform: translateY(0);    opacity: 1; }
+      color: #991b1b;
+      border-color: #f87171;
     }
 
     .suggestions {
