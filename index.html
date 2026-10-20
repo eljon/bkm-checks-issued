@@ -678,7 +678,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>BKM Checks Issued <span class="version">v2</span></h1>
+    <h1>BKM Checks Issued <span class="version">v3</span></h1>
 
     <div class="tabs">
       <button type="button" class="tab active" data-tab="enter">Enter</button>
@@ -1004,15 +1004,15 @@
     // mm from the check's left and top edges), measured from the check.
     const CHECK_LAYOUT = {
       // Center of each date box: M M - D D - Y Y Y Y
-      dateBoxX: [145.4, 150.6, 157.8, 163.3, 171.0, 176.4, 182.0, 187.9],
-      dateBoxY: 14.0,
-      datePt: 12,
-      // PAY TO THE ORDER OF line (underline at y≈24.9, x 26..131)
+      dateBoxX: [143.9, 148.6, 155.6, 160.2, 167.2, 172.0, 176.7, 181.3],
+      dateBoxY: 15.1,
+      datePt: 10,
+      // PAY TO THE ORDER OF line
       payeeX: 30, payeeMaxX: 130, payeeBaseline: 24.0, payeePt: 12,
-      // Amount box right of the peso sign (x 136.8..189.6, y 19.5..26)
-      amountX: 139.5, amountMaxX: 186.5, amountBaseline: 24.0, amountPt: 13,
-      // PESOS line (underline at y≈33.3, x 19.6..188.3)
-      wordsX: 23, wordsMaxX: 186, wordsBaseline: 32.3, wordsPt: 10, wordsMinPt: 6
+      // Amount box right of the peso sign, right-aligned inside the box
+      amountX: 139.5, amountMaxX: 181.7, amountBaseline: 24.0, amountPt: 11,
+      // PESOS line
+      wordsX: 23, wordsMaxX: 182.5, wordsBaseline: 32.3, wordsPt: 10, wordsMinPt: 6
     };
 
     // The printout comes out scaled relative to the CSS overlay. Measured by
@@ -1052,9 +1052,9 @@
       const digits = formatCheckDate(c.checkDate || '').replace(/\D/g, '');
       const payee = String(c.supplier || '').toUpperCase();
       const words = pesoToWords(amt);
-      const amtText = '**' + amt.toLocaleString('en-PH', {
+      const amtText = amt.toLocaleString('en-PH', {
         minimumFractionDigits: 2, maximumFractionDigits: 2
-      }) + '**';
+      });
 
       let html = '';
 
@@ -1069,14 +1069,16 @@
       });
 
       const payL = ovX(L.payeeX), payW = ovX(L.payeeMaxX) - payL;
-      html += pcLine(payee, payL, payW, L.payeeBaseline, fitPt(payee, payW, L.payeePt, 6));
+      html += pcLine(payee, payL, payW, L.payeeBaseline,
+        fitPt(payee, payW, L.payeePt, 6), { bold: true });
 
       const amtL = ovX(L.amountX), amtW = ovX(L.amountMaxX) - amtL;
       html += pcLine(amtText, amtL, amtW, L.amountBaseline,
         fitPt(amtText, amtW, L.amountPt, 7), { align: 'right', bold: true });
 
       const wL = ovX(L.wordsX), wW = ovX(L.wordsMaxX) - wL;
-      html += pcLine(words, wL, wW, L.wordsBaseline, fitPt(words, wW, L.wordsPt, L.wordsMinPt));
+      html += pcLine(words, wL, wW, L.wordsBaseline,
+        fitPt(words, wW, L.wordsPt, L.wordsMinPt), { bold: true });
 
       return html;
     }
