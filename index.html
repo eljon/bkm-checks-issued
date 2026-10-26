@@ -645,9 +645,12 @@
       /* Each check gets its own letter-sized page. The 175x83mm landscape
          overlay is rotated 90° CW to fit the 83x175mm slot centered at the
          top of the letter page where the check physically sits. */
+      /* Width must stay 8.5in (calibration depends on it). Height is just the
+         check area, so a page never spills onto a second sheet when the
+         printer adds margins or shrinks the page. */
       body.printing-checks .print-check-page {
         width: 8.5in;
-        height: 11in;
+        height: 210mm;
         position: relative;
         overflow: hidden;
         page-break-after: always;
@@ -678,7 +681,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>BKM Checks Issued <span class="version">v6</span></h1>
+    <h1>BKM Checks Issued <span class="version">v7</span></h1>
 
     <div class="tabs">
       <button type="button" class="tab active" data-tab="enter">Enter</button>
@@ -1092,9 +1095,11 @@
     }
 
     // One letter page per check; each page holds the rotated overlay.
+    // Pages are in reverse order: the first check of the series goes on the
+    // last page, which is the first one fed for multi-page jobs.
     function fillChecksBatch(checks) {
       const container = document.getElementById('printChecks');
-      container.innerHTML = (checks || []).map(c =>
+      container.innerHTML = (checks || []).slice().reverse().map(c =>
         `<div class="print-check-page"><div class="pc-overlay">${pcCheckFields(c)}</div></div>`
       ).join('');
     }
