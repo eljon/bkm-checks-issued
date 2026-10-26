@@ -678,7 +678,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>BKM Checks Issued <span class="version">v4</span></h1>
+    <h1>BKM Checks Issued <span class="version">v5</span></h1>
 
     <div class="tabs">
       <button type="button" class="tab active" data-tab="enter">Enter</button>
@@ -1017,14 +1017,13 @@
 
     // Maps CSS overlay mm to where ink lands on the check:
     //   checkX = sx * overlayX + bx,  checkY = sy * overlayY + by
-    // mac: measured from prints on the physical check (8 fields, ~2mm).
-    //   macOS shrinks the full-bleed letter page ~8% about the page center
-    //   to fit the printer's printable area.
-    // windows: Windows prints at 100% (no shrink). Derived from the mac fit
-    //   by removing that center scaling.
+    // Both measured from prints on the physical check. Each OS shrinks the
+    // letter page slightly differently and anchors it differently.
+    //   mac: 8 fields across two prints, ~2mm.
+    //   windows: 8 date digits + amount + words from one v4 print.
     const PRINT_CALS = {
       mac: { sx: 0.923, bx: 12.65, sy: 0.913, by: 0.70 },
-      windows: { sx: 1, bx: 1.89, sy: 1, by: -2.91 }
+      windows: { sx: 0.956, bx: -1.37, sy: 0.921, by: -0.12 }
     };
     const PRINT_CAL = /win/i.test(
       (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || ''
