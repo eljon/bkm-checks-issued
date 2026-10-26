@@ -685,7 +685,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>BKM Checks Issued <span class="version">v8</span></h1>
+    <h1>BKM Checks Issued <span class="version">v9</span></h1>
 
     <div class="tabs">
       <button type="button" class="tab active" data-tab="enter">Enter</button>
@@ -706,7 +706,7 @@
             </span>
             <span class="toggle-label">
               <strong>Sequence Mode</strong>
-              <span class="hint">After saving, increment the check number and keep the other fields.</span>
+              <span class="hint">After saving, keep every field except the check date. The check number goes up by one if one was entered.</span>
             </span>
           </label>
 
@@ -1256,10 +1256,14 @@
 
     function resetEnterForm(last) {
       const seq = document.getElementById('seqMode').checked;
-      if (seq && last && last.checkNumber) {
-        document.getElementById('checkNumber').value = incrementCheckNumber(last.checkNumber);
-        document.getElementById('checkNumber').focus();
-        document.getElementById('checkNumber').select();
+      if (seq && last) {
+        // Keep every field except the check date; bump the check number if any.
+        if (last.checkNumber) {
+          document.getElementById('checkNumber').value = incrementCheckNumber(last.checkNumber);
+        }
+        const date = document.getElementById('checkDate');
+        date.value = '';
+        date.focus();
         return;
       }
       document.getElementById('checkForm').reset();
