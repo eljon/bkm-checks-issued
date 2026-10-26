@@ -678,7 +678,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>BKM Checks Issued <span class="version">v5</span></h1>
+    <h1>BKM Checks Issued <span class="version">v6</span></h1>
 
     <div class="tabs">
       <button type="button" class="tab active" data-tab="enter">Enter</button>
@@ -856,7 +856,7 @@
           </span>
           <span class="toggle-label">
             <strong>Series</strong>
-            <span class="hint">Auto-fill the check numbers of selected rows starting from the number below.</span>
+            <span class="hint">Type a check number in a selected row and press Tab or Enter to number the selected rows below it, or enter a starting number below.</span>
           </span>
         </label>
         <div class="series-input hidden" id="seriesInputWrap">
@@ -1773,6 +1773,7 @@
         if (seriesCb.checked) document.getElementById('seriesStart').focus();
       });
       document.getElementById('seriesApplyBtn').addEventListener('click', applySeries);
+      document.getElementById('printResults').addEventListener('keydown', onCheckNumberKeydown);
     }
 
 
@@ -1847,21 +1848,40 @@
       if (!start) { showToast('printToast', 'Enter a starting check number.', 'error'); return; }
       if (!/\d/.test(start)) { showToast('printToast', 'Starting number must contain digits.', 'error'); return; }
       hideToast('printToast');
-
-      const container = document.getElementById('printResults');
-      const checkboxes = Array.from(container.querySelectorAll('input[type=checkbox]'));
-      let current = start;
-      let filled = 0;
-      checkboxes.forEach(cb => {
-        if (!cb.checked) return;
-        const input = container.querySelector('.addnum-input[data-i="' + cb.dataset.i + '"]');
-        input.value = current;
-        current = incrementCheckNumber(current);
-        filled++;
-      });
-      if (!filled) {
+      if (!fillSelectedSeries(start, null)) {
         showToast('printToast', 'Nothing selected to apply the series to.', 'error');
       }
+    }
+
+    // Fill selected rows with start, start+1, ... in list order. With
+    // afterInput, `start` is that row's number and only the selected rows
+    // below it are filled. Returns how many rows were filled.
+    function fillSelectedSeries(start, afterInput) {
+      const container = document.getElementById('printResults');
+      const rows = Array.from(container.querySelectorAll('.addnum-row'));
+      let i = afterInput ? rows.indexOf(afterInput.closest('.addnum-row')) + 1 : 0;
+      let current = afterInput ? incrementCheckNumber(start) : start;
+      let filled = 0;
+      for (; i < rows.length; i++) {
+        if (!rows[i].querySelector('input[type=checkbox]').checked) continue;
+        rows[i].querySelector('.addnum-input').value = current;
+        current = incrementCheckNumber(current);
+        filled++;
+      }
+      return filled;
+    }
+
+    // Series on: typing a number in a row and pressing Tab/Enter numbers the
+    // selected rows below it.
+    function onCheckNumberKeydown(e) {
+      if (e.key !== 'Enter' && e.key !== 'Tab') return;
+      if (!e.target.matches('.addnum-input')) return;
+      if (!document.getElementById('seriesMode').checked) return;
+      const start = e.target.value.trim();
+      if (!/\d/.test(start)) return;
+      if (e.key === 'Enter') e.preventDefault();
+      const filled = fillSelectedSeries(start, e.target);
+      if (filled) showToast('printToast', 'Filled ' + filled + ' more check number(s).', 'success');
     }
 
     function onPrintSelected() {
