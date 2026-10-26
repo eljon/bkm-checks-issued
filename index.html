@@ -576,6 +576,34 @@
     /* Spacer so the last list item isn't hidden under the floating bar. */
     .floating-action-spacer { height: 80px; }
 
+    /* ---------- Background save queue status ---------- */
+    .save-queue {
+      position: sticky;
+      top: 8px;
+      z-index: 950;
+      margin: -6px 0 12px;
+      padding: 8px 12px;
+      background: white;
+      border: 1px solid #bfdbfe;
+      border-radius: 10px;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .save-queue.has-failed { border-color: #fca5a5; }
+    .sq-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .sq-line + .sq-line { margin-top: 6px; }
+    .sq-failed { color: var(--error); font-weight: 500; }
+    .sq-actions { display: flex; gap: 6px; width: 100%; }
+    .sq-spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid #dbeafe;
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: busy-spin 0.8s linear infinite;
+    }
+
     /* ---------- Busy overlay (blocks the page while saving) ---------- */
     .busy-overlay {
       position: fixed;
@@ -767,7 +795,7 @@
         color: #000;
       }
 
-      .busy-overlay { display: none !important; }
+      .busy-overlay, .save-queue { display: none !important; }
 
       body.printing-report .print-report {
         display: block !important;
@@ -778,7 +806,8 @@
 </head>
 <body>
   <div class="container">
-    <h1>BKM Checks Issued <span class="version">v12</span></h1>
+    <h1>BKM Checks Issued <span class="version">v13</span></h1>
+    <div class="save-queue hidden" id="saveQueue" role="status" aria-live="polite"></div>
 
     <div class="tabs">
       <button type="button" class="tab active" data-tab="enter">Enter</button>
@@ -1051,7 +1080,11 @@
 
     // ==================== API ====================
 
+    // Reads wait for queued check saves so lists never miss a just-entered check.
+    const WAITS_FOR_SAVES = { getPendingPrint: 1, viewerSearch: 1, searchChecks: 1 };
+
     async function api(action, payload) {
+      if (WAITS_FOR_SAVES[action]) await whenSavesSettled();
       const resp = await fetch(APP_CONFIG.apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -1062,7 +1095,11 @@
       let data;
       try { data = JSON.parse(text); }
       catch (_) { throw new Error('Bad response: ' + text.slice(0, 200)); }
-      if (data.error) throw new Error(data.error);
+      if (data.error) {
+        const e = new Error(data.error);
+        e.fromServer = true; // the script rejected it; retrying won't help
+        throw e;
+      }
       return data;
     }
 
@@ -1304,30 +1341,25 @@
 
       fillChecksBatch([payload]);
       printChecksBatch();
-      await saveEnteredCheck(payload);
+      queueCheckSave(payload);
     }
 
-    async function onEnterSubmit(e) {
+    function onEnterSubmit(e) {
       e.preventDefault();
       const payload = collectEnterPayload();
       const err = validate(payload);
       if (err) { showToast('enterToast', err, 'error'); return; }
-      await saveEnteredCheck(payload);
+      queueCheckSave(payload);
     }
 
-    // Blocks the page until the sheet confirms. The form clears only on
-    // success; on failure everything typed stays put.
-    async function saveEnteredCheck(payload) {
-      hideToast('enterToast');
-      try {
-        await withBusy('Saving ' + enterSummary(payload) + '…', () => api('saveCheck', payload));
-      } catch (err) {
-        showToast('enterToast', '✗ Save failed: ' + (err.message || err) + ' — nothing was saved.', 'error');
-        return;
-      }
+    // The form clears right away so the next check can be typed; the save runs
+    // in the background queue below.
+    function queueCheckSave(payload) {
+      saveQueue.items.push({ payload, label: enterSummary(payload), status: 'pending' });
       bumpLocalLists(payload);
       resetEnterForm(payload);
-      showToast('enterToast', '✓ Saved — ' + enterSummary(payload), 'success');
+      renderSaveQueue();
+      runSaveQueue();
     }
 
     function enterSummary(p) {
@@ -2079,6 +2111,97 @@
       refreshPrintSummary();
       showToast('printToast', '✓ Printed and saved ' + rowIndices.length + ' check(s).', 'success');
     }
+
+    // ==================== Check save queue ====================
+
+    // Entered checks save one at a time in entry order. Network errors retry;
+    // anything still failing stays in the queue (Retry / Discard) so a check is
+    // never silently dropped.
+    const saveQueue = { items: [], running: false, waiters: [] };
+    const SAVE_RETRY_DELAYS_MS = [1000, 3000];
+
+    async function runSaveQueue() {
+      if (saveQueue.running) return;
+      saveQueue.running = true;
+      try {
+        let item;
+        while ((item = saveQueue.items.find(i => i.status === 'pending'))) {
+          item.status = 'saving';
+          renderSaveQueue();
+          try {
+            await saveWithRetry(item.payload);
+            saveQueue.items.splice(saveQueue.items.indexOf(item), 1);
+            showToast('enterToast', '✓ Saved — ' + item.label, 'success');
+          } catch (err) {
+            item.status = 'failed';
+            item.error = err.message || String(err);
+            showToast('enterToast', '✗ Not saved — ' + item.label + ': ' + item.error, 'error');
+          }
+          renderSaveQueue();
+        }
+      } finally {
+        saveQueue.running = false;
+        if (!pendingSaveCount()) saveQueue.waiters.splice(0).forEach(resolve => resolve());
+      }
+    }
+
+    async function saveWithRetry(payload) {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          return await api('saveCheck', payload);
+        } catch (err) {
+          if (err.fromServer || attempt >= SAVE_RETRY_DELAYS_MS.length) throw err;
+          await new Promise(r => setTimeout(r, SAVE_RETRY_DELAYS_MS[attempt]));
+        }
+      }
+    }
+
+    function pendingSaveCount() {
+      return saveQueue.items.filter(i => i.status === 'pending' || i.status === 'saving').length;
+    }
+
+    // Resolves once nothing is pending or saving (failed items don't block).
+    function whenSavesSettled() {
+      if (!pendingSaveCount()) return Promise.resolve();
+      return new Promise(resolve => saveQueue.waiters.push(resolve));
+    }
+
+    function renderSaveQueue() {
+      const el = document.getElementById('saveQueue');
+      const pending = pendingSaveCount();
+      const failed = saveQueue.items.filter(i => i.status === 'failed');
+      if (!pending && !failed.length) { el.className = 'save-queue hidden'; el.innerHTML = ''; return; }
+      let html = '';
+      if (pending) {
+        html += `<div class="sq-line"><span class="sq-spinner"></span>Saving ${pending} check${pending === 1 ? '' : 's'}…</div>`;
+      }
+      if (failed.length) {
+        html += `<div class="sq-line sq-failed">⚠ ${failed.length} not saved: ` +
+          failed.map(f => escapeHtml(f.label)).join('; ') +
+          `<div class="sq-actions"><button type="button" class="btn-sm" id="sqRetry">Retry</button>` +
+          `<button type="button" class="btn-del-sm" id="sqDiscard">Discard</button></div></div>`;
+      }
+      el.className = 'save-queue' + (failed.length ? ' has-failed' : '');
+      el.innerHTML = html;
+      const retry = el.querySelector('#sqRetry');
+      if (retry) retry.addEventListener('click', () => {
+        saveQueue.items.forEach(i => { if (i.status === 'failed') i.status = 'pending'; });
+        renderSaveQueue();
+        runSaveQueue();
+      });
+      const discard = el.querySelector('#sqDiscard');
+      if (discard) discard.addEventListener('click', () => {
+        if (!confirm('Discard ' + failed.length + ' unsaved check(s)? They are not in the sheet.')) return;
+        saveQueue.items = saveQueue.items.filter(i => i.status !== 'failed');
+        renderSaveQueue();
+      });
+    }
+
+    window.addEventListener('beforeunload', e => {
+      if (!saveQueue.items.length) return;
+      e.preventDefault();
+      e.returnValue = '';
+    });
 
     // ==================== Busy overlay ====================
 

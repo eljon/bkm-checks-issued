@@ -68,15 +68,23 @@ function saveCheck_(p) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const checks = ss.getSheetByName(SHEET_CHECKS);
 
-  addIfNew_(SHEET_SUPPLIERS, supplier);
-  addIfNew_(SHEET_BANKS, bank);
+  // Without the lock, two saves at the same moment (e.g. from two computers)
+  // can both pick the same "next row" and one check overwrites the other.
+  const lock = LockService.getDocumentLock();
+  lock.waitLock(20000);
+  try {
+    addIfNew_(SHEET_SUPPLIERS, supplier);
+    addIfNew_(SHEET_BANKS, bank);
 
-  const row = checks.getLastRow() + 1;
-  checks.getRange(row, 1, 1, CHECK_HEADERS.length).setValues([[
-    new Date(), supplier, orderMonth, checkDate, checkNumber, bank, amount, notes, false
-  ]]);
-
-  return { ok: true, rowIndex: row };
+    const row = checks.getLastRow() + 1;
+    checks.getRange(row, 1, 1, CHECK_HEADERS.length).setValues([[
+      new Date(), supplier, orderMonth, checkDate, checkNumber, bank, amount, notes, false
+    ]]);
+    SpreadsheetApp.flush();
+    return { ok: true, rowIndex: row };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // Viewer search across every column, newest entries first. An empty query
@@ -121,6 +129,7 @@ function deleteCheck_(p) {
       Math.abs(c.amount - Number(p.amount || 0)) < 0.005;
     if (!same) throw new Error('That check changed in the sheet. Reload and try again.');
     checks.deleteRow(rowIndex);
+    SpreadsheetApp.flush();
     return { ok: true };
   } finally {
     lock.releaseLock();
