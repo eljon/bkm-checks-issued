@@ -576,6 +576,41 @@
     /* Spacer so the last list item isn't hidden under the floating bar. */
     .floating-action-spacer { height: 80px; }
 
+    /* ---------- Busy overlay (blocks the page while saving) ---------- */
+    .busy-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: rgba(15, 23, 42, 0.45);
+      cursor: wait;
+    }
+    .busy-box {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      max-width: 420px;
+      padding: 18px 22px;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .busy-spinner {
+      flex-shrink: 0;
+      width: 22px;
+      height: 22px;
+      border: 3px solid #dbeafe;
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: busy-spin 0.8s linear infinite;
+    }
+    @keyframes busy-spin { to { transform: rotate(360deg); } }
+
     /* ---------- Modal ---------- */
     .modal-backdrop {
       position: fixed;
@@ -732,6 +767,8 @@
         color: #000;
       }
 
+      .busy-overlay { display: none !important; }
+
       body.printing-report .print-report {
         display: block !important;
       }
@@ -741,7 +778,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>BKM Checks Issued <span class="version">v11</span></h1>
+    <h1>BKM Checks Issued <span class="version">v12</span></h1>
 
     <div class="tabs">
       <button type="button" class="tab active" data-tab="enter">Enter</button>
@@ -936,6 +973,13 @@
   <!-- Batch check printout: dynamically filled with one <.print-check-page>
        per selected check. Each page carries its own rotated overlay. -->
   <div class="print-checks" id="printChecks" aria-hidden="true"></div>
+
+  <div class="busy-overlay hidden" id="busyOverlay" role="alert" aria-live="assertive">
+    <div class="busy-box">
+      <div class="busy-spinner"></div>
+      <div id="busyMsg">Saving…</div>
+    </div>
+  </div>
 
   <div class="print-report" id="printReport" aria-hidden="true">
     <div class="report-header">
@@ -1258,21 +1302,9 @@
       const err = validate(payload);
       if (err) { showToast('enterToast', err, 'error'); return; }
 
-      // Print first — the dialog opens instantly.
       fillChecksBatch([payload]);
       printChecksBatch();
-
-      // Optimistic save: show pending state and reset before the network call returns.
-      hideToast('enterToast');
-      showToast('enterToast', 'Saving ' + enterSummary(payload) + '…', 'success');
-      bumpLocalLists(payload);
-      resetEnterForm(payload);
-
-      api('saveCheck', payload).then(() => {
-        showToast('enterToast', '✓ Saved — ' + enterSummary(payload), 'success');
-      }).catch(err => {
-        showToast('enterToast', '✗ Save failed: ' + (err.message || err) + ' — data NOT saved.', 'error');
-      });
+      await saveEnteredCheck(payload);
     }
 
     async function onEnterSubmit(e) {
@@ -1280,18 +1312,22 @@
       const payload = collectEnterPayload();
       const err = validate(payload);
       if (err) { showToast('enterToast', err, 'error'); return; }
+      await saveEnteredCheck(payload);
+    }
 
-      // Optimistic UI: reset immediately so the next check can be typed.
+    // Blocks the page until the sheet confirms. The form clears only on
+    // success; on failure everything typed stays put.
+    async function saveEnteredCheck(payload) {
       hideToast('enterToast');
-      showToast('enterToast', 'Saving ' + enterSummary(payload) + '…', 'success');
+      try {
+        await withBusy('Saving ' + enterSummary(payload) + '…', () => api('saveCheck', payload));
+      } catch (err) {
+        showToast('enterToast', '✗ Save failed: ' + (err.message || err) + ' — nothing was saved.', 'error');
+        return;
+      }
       bumpLocalLists(payload);
       resetEnterForm(payload);
-
-      api('saveCheck', payload).then(() => {
-        showToast('enterToast', '✓ Saved — ' + enterSummary(payload), 'success');
-      }).catch(err => {
-        showToast('enterToast', '✗ Save failed: ' + (err.message || err) + ' — data NOT saved.', 'error');
-      });
+      showToast('enterToast', '✓ Saved — ' + enterSummary(payload), 'success');
     }
 
     function enterSummary(p) {
@@ -1520,7 +1556,12 @@
       const err = validate(payload);
       if (err) { showToast('viewerToast', err, 'error'); return; }
 
-      // Optimistic: mutate local copy and re-render before the network call returns.
+      try {
+        await withBusy('Saving changes…', () => api('updateCheck', payload));
+      } catch (err) {
+        showToast('viewerToast', '✗ Save failed: ' + (err.message || err) + ' — changes NOT saved.', 'error');
+        return;
+      }
       Object.assign(state.viewerMatches[i], {
         supplier: payload.supplier,
         orderMonth: payload.orderMonth,
@@ -1533,11 +1574,7 @@
       state.editingRowIndex = null;
       renderViewerMatches();
       bumpLocalLists(payload);
-      showToast('viewerToast', 'Saved.', 'success');
-
-      api('updateCheck', payload).catch(err => {
-        showToast('viewerToast', 'Save failed: ' + (err.message || err) + ' — changes NOT saved.', 'error');
-      });
+      showToast('viewerToast', '✓ Saved.', 'success');
     }
 
     function onViewerPrint(i) {
@@ -1992,7 +2029,7 @@
       if (filled) showToast('printToast', 'Filled ' + filled + ' more check number(s).', 'success');
     }
 
-    function onPrintSelected() {
+    async function onPrintSelected() {
       const container = document.getElementById('printResults');
       const checkboxes = Array.from(container.querySelectorAll('input[type=checkbox]:checked'));
       if (!checkboxes.length) {
@@ -2026,17 +2063,40 @@
       fillChecksBatch(selected);
       printChecksBatch();
 
-      // Optimistically remove them from the pending list so the UI advances.
-      const rowIndices = selected.map(c => c.rowIndex);
+      // Save check numbers + Printed=true; rows leave the list only on success.
+      const updates = selected.map(c => ({ rowIndex: c.rowIndex, checkNumber: c.checkNumber }));
+      try {
+        await withBusy('Saving ' + updates.length + ' check number(s)…', () => api('printChecks', { updates }));
+      } catch (err) {
+        showToast('printToast', '✗ Save failed: ' + (err.message || err) + ' — check numbers NOT saved.', 'error');
+        return;
+      }
+      const rowIndices = updates.map(u => u.rowIndex);
+      const ui = snapshotRows('printResults');
       state.printPending = state.printPending.filter(c => rowIndices.indexOf(c.rowIndex) === -1);
       renderPrintPending();
-      showToast('printToast', 'Printed ' + rowIndices.length + ' check(s).', 'success');
+      restoreRows('printResults', ui, r => r);
+      refreshPrintSummary();
+      showToast('printToast', '✓ Printed and saved ' + rowIndices.length + ' check(s).', 'success');
+    }
 
-      // Persist check numbers + Printed=true in the background.
-      const updates = selected.map(c => ({ rowIndex: c.rowIndex, checkNumber: c.checkNumber }));
-      api('printChecks', { updates }).catch(err => {
-        showToast('printToast', 'Save failed: ' + (err.message || err) + ' — check numbers may not be stored.', 'error');
-      });
+    // ==================== Busy overlay ====================
+
+    // Shows a blocking overlay and makes the app inert (no clicks, typing or
+    // focus) until fn() settles. Returns/throws whatever fn does.
+    async function withBusy(message, fn) {
+      const overlay = document.getElementById('busyOverlay');
+      const app = document.querySelector('.container');
+      document.getElementById('busyMsg').textContent = message;
+      if (document.activeElement) document.activeElement.blur();
+      app.inert = true;
+      overlay.classList.remove('hidden');
+      try {
+        return await fn();
+      } finally {
+        overlay.classList.add('hidden');
+        app.inert = false;
+      }
     }
 
     // ==================== Delete ====================
@@ -2047,12 +2107,12 @@
         '₱' + fmtAmt(c.amount)].filter(Boolean).join(' · ');
       if (!confirm('Delete this check?\n\n' + label +
         '\n\nThis removes it from the sheet and can\'t be undone.')) return;
-      showToast(toastId, 'Deleting ' + label + '…', 'success');
+      hideToast(toastId);
       try {
-        await api('deleteCheck', {
+        await withBusy('Deleting ' + label + '…', () => api('deleteCheck', {
           rowIndex: c.rowIndex, supplier: c.supplier, checkNumber: c.checkNumber,
           checkDate: c.checkDate, amount: c.amount
-        });
+        }));
       } catch (err) {
         showToast(toastId, '✗ Delete failed: ' + (err.message || err), 'error');
         return;
