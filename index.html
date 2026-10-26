@@ -206,6 +206,27 @@
       border: 1px solid var(--primary);
     }
     .actions .btn-secondary:hover:not(:disabled) { background: #eff6ff; }
+    .actions.three { grid-template-columns: 1fr 1fr 1fr; }
+    .actions .btn-danger {
+      background: white;
+      color: var(--error);
+      border: 1px solid var(--error);
+    }
+    .actions .btn-danger:hover:not(:disabled) { background: #fef2f2; }
+
+    /* Compact Delete button for list rows (Print, Report). */
+    .btn-del-sm {
+      width: auto;
+      margin: 0;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      background: white;
+      color: var(--error);
+      border: 1px solid #fca5a5;
+      border-radius: 6px;
+    }
+    .btn-del-sm:hover:not(:disabled) { background: #fef2f2; }
 
     .check-row {
       display: grid;
@@ -375,7 +396,7 @@
     }
     .report-item {
       display: grid;
-      grid-template-columns: auto 1fr auto;
+      grid-template-columns: auto 1fr auto auto;
       gap: 12px;
       padding: 10px 12px;
       border: 1px solid #e5e7eb;
@@ -472,7 +493,7 @@
     /* ---------- Add # row ---------- */
     .addnum-row {
       display: grid;
-      grid-template-columns: auto 1fr 110px;
+      grid-template-columns: auto 1fr 110px auto;
       gap: 10px;
       align-items: center;
       padding: 10px;
@@ -685,7 +706,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>BKM Checks Issued <span class="version">v9</span></h1>
+    <h1>BKM Checks Issued <span class="version">v10</span></h1>
 
     <div class="tabs">
       <button type="button" class="tab active" data-tab="enter">Enter</button>
@@ -766,8 +787,8 @@
       <div class="card">
         <form id="viewerForm" autocomplete="off">
           <div class="field">
-            <label for="vSearch">Check Number</label>
-            <input type="text" id="vSearch" inputmode="numeric" required>
+            <label for="vSearch">Search <span class="opt">(any field — leave blank for the 10 most recent)</span></label>
+            <input type="search" id="vSearch" placeholder="Supplier, check #, bank, amount, date, notes…">
           </div>
           <button type="submit" id="vSearchBtn">Search</button>
           <div class="toast" id="viewerToast"></div>
@@ -924,7 +945,9 @@
       viewerMatches: [],
       editingRowIndex: null,
       reportChecks: [],
-      printPending: []    // For Printing tab
+      printPending: [],   // For Printing tab
+      viewerQuery: '',
+      viewerTotal: 0
     };
 
     document.addEventListener('DOMContentLoaded', async () => {
@@ -982,6 +1005,7 @@
       document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('hidden', p.id !== 'tab-' + name));
       if (name === 'print') loadPendingPrint().catch(err => showToast('printToast', err.message, 'error'));
+      if (name === 'viewer' && !state.viewerQuery) loadViewer('');
     }
 
     // ==================== Print ====================
@@ -1287,24 +1311,23 @@
       document.getElementById('viewerForm').addEventListener('submit', onViewerSearch);
     }
 
-    async function onViewerSearch(e) {
+    function onViewerSearch(e) {
       e.preventDefault();
-      const num = document.getElementById('vSearch').value.trim();
-      if (!num) return;
+      loadViewer(document.getElementById('vSearch').value.trim());
+    }
+
+    // Empty query = the 10 most recently entered checks.
+    async function loadViewer(q) {
       const btn = document.getElementById('vSearchBtn');
       btn.disabled = true; btn.textContent = 'Searching...';
       hideToast('viewerToast');
-      document.getElementById('vResults').innerHTML = '';
       state.editingRowIndex = null;
-
       try {
-        const data = await api('findChecks', { checkNumber: num });
-        state.viewerMatches = data.matches || [];
-        if (!state.viewerMatches.length) {
-          showToast('viewerToast', 'No checks found with that number.', 'error');
-        } else {
-          renderViewerMatches();
-        }
+        const data = await api('viewerSearch', { q });
+        state.viewerQuery = q;
+        state.viewerMatches = data.checks || [];
+        state.viewerTotal = data.total || 0;
+        renderViewerMatches();
       } catch (err) {
         showToast('viewerToast', err.message || 'Search failed.', 'error');
       } finally {
@@ -1314,16 +1337,27 @@
 
     function renderViewerMatches() {
       const container = document.getElementById('vResults');
-      const bar = state.viewerMatches.length > 1 ? `
+      const n = state.viewerMatches.length;
+      if (!n) {
+        container.innerHTML = `<div class="card">${state.viewerQuery
+          ? 'No checks match &ldquo;' + escapeHtml(state.viewerQuery) + '&rdquo;.'
+          : 'No checks yet.'}</div>`;
+        return;
+      }
+      const title = state.viewerQuery
+        ? `<strong>${state.viewerTotal}</strong> match${state.viewerTotal === 1 ? '' : 'es'}` +
+          (state.viewerTotal > n ? ` (showing first ${n})` : '')
+        : `<strong>${n}</strong> most recent`;
+      const bar = `
         <div class="card" style="padding:12px 16px;">
           <div class="list-bar" style="margin:0;">
-            <div class="list-bar-summary"><strong>${state.viewerMatches.length}</strong> matches</div>
-            <div class="list-bar-actions">
+            <div class="list-bar-summary">${title}</div>
+            ${n > 1 ? `<div class="list-bar-actions">
               <button type="button" id="vPrintAllBtn">Print All</button>
-            </div>
+            </div>` : ''}
           </div>
         </div>
-      ` : '';
+      `;
       container.innerHTML = bar + state.viewerMatches.map((c, i) =>
         state.editingRowIndex === c.rowIndex ? renderEditCard(c, i) : renderViewCard(c, i)
       ).join('');
@@ -1344,9 +1378,10 @@
         <div class="check-row"><span class="lbl">Bank</span><span class="val">${escapeHtml(c.bank)}</span></div>
         <div class="check-row"><span class="lbl">Amount</span><span class="val">&#8369;${fmtAmt(c.amount)}</span></div>
         <div class="check-row"><span class="lbl">Notes</span><span class="val">${escapeHtml(c.notes || '—')}</span></div>
-        <div class="actions">
+        <div class="actions three">
           <button type="button" class="btn-secondary" data-action="edit" data-i="${i}">Edit</button>
           <button type="button" class="btn-secondary" data-action="print" data-i="${i}">Print</button>
+          <button type="button" class="btn-danger" data-action="delete" data-i="${i}">Delete</button>
         </div>
       </div>`;
     }
@@ -1396,9 +1431,10 @@
           <textarea data-edit="notes">${escapeHtml(c.notes || '')}</textarea>
         </div>
         <button type="button" data-action="save" data-i="${i}">Save Changes</button>
-        <div class="actions">
+        <div class="actions three">
           <button type="button" class="btn-secondary" data-action="cancel" data-i="${i}">Cancel</button>
           <button type="button" class="btn-secondary" data-action="print" data-i="${i}">Print</button>
+          <button type="button" class="btn-danger" data-action="delete" data-i="${i}">Delete</button>
         </div>
       </div>`;
     }
@@ -1413,6 +1449,7 @@
           if (action === 'cancel') onViewerCancel();
           if (action === 'save')   onViewerSave(i, btn);
           if (action === 'print')  onViewerPrint(i);
+          if (action === 'delete') deleteCheck(state.viewerMatches[i], 'viewerToast');
         });
       });
     }
@@ -1619,6 +1656,12 @@
       attachAutocomplete('rSupplier', 'rSupplierSuggestions', () => state.suppliers);
       attachAutocomplete('rBank', 'rBankSuggestions', () => state.banks);
       document.getElementById('reportForm').addEventListener('submit', onReportSearch);
+      document.getElementById('rResults').addEventListener('click', e => {
+        const del = e.target.closest('[data-del]');
+        if (!del) return;
+        e.preventDefault(); // the row is a <label>; don't toggle its checkbox
+        deleteCheck(state.reportChecks[Number(del.dataset.del)], 'reportToast');
+      });
     }
 
     async function onReportSearch(e) {
@@ -1654,13 +1697,14 @@
       }
 
       const items = state.reportChecks.map((c, i) => `
-        <label class="report-item">
+        <label class="report-item" data-row="${c.rowIndex}">
           <input type="checkbox" checked data-i="${i}">
           <div class="report-item-body">
             <div><strong>${escapeHtml(c.checkDate)}</strong> · ${escapeHtml(c.bank)} · #${escapeHtml(c.checkNumber)}</div>
             <div class="meta">${escapeHtml(c.supplier)}${c.notes ? ' · ' + escapeHtml(c.notes) : ''}</div>
           </div>
           <div class="report-item-amt">&#8369;${fmtAmt(c.amount)}</div>
+          <button type="button" class="btn-del-sm" data-del="${i}">Delete</button>
         </label>
       `).join('');
 
@@ -1786,7 +1830,15 @@
         if (seriesCb.checked) document.getElementById('seriesStart').focus();
       });
       document.getElementById('seriesApplyBtn').addEventListener('click', applySeries);
-      document.getElementById('printResults').addEventListener('keydown', onCheckNumberKeydown);
+      const results = document.getElementById('printResults');
+      results.addEventListener('keydown', onCheckNumberKeydown);
+      results.addEventListener('change', e => {
+        if (e.target.matches('input[type=checkbox]')) refreshPrintSummary();
+      });
+      results.addEventListener('click', e => {
+        const del = e.target.closest('[data-del]');
+        if (del) deleteCheck(state.printPending[Number(del.dataset.del)], 'printToast');
+      });
     }
 
 
@@ -1820,13 +1872,14 @@
           </div>
         </div>
         ${list.map((c, i) => `
-          <div class="addnum-row">
+          <div class="addnum-row" data-row="${c.rowIndex}">
             <input type="checkbox" checked data-i="${i}">
             <div class="addnum-info">
               <strong>${escapeHtml(c.checkDate || '(no date)')}</strong> · ${escapeHtml(c.supplier)}
               <div class="meta">${escapeHtml(c.bank)} · &#8369;${fmtAmt(c.amount)}${c.orderMonth ? ' · ' + escapeHtml(formatOrderMonth(c.orderMonth)) : ''}${c.notes ? ' · ' + escapeHtml(c.notes) : ''}</div>
             </div>
             <input type="text" class="addnum-input" data-i="${i}" placeholder="Check #" inputmode="numeric">
+            <button type="button" class="btn-del-sm" data-del="${i}">Delete</button>
           </div>
         `).join('')}
         <div class="floating-action-spacer"></div>
@@ -1835,25 +1888,26 @@
         </div>
       `;
 
-      const refreshSummary = () => {
-        const checked = Array.from(container.querySelectorAll('input[type=checkbox]:checked'));
-        const total = checked.reduce((s, cb) => s + list[Number(cb.dataset.i)].amount, 0);
-        container.querySelector('#printSelCount').textContent = checked.length;
-        container.querySelector('#printSelTotal').innerHTML = '&#8369;' + fmtAmt(total);
-      };
-      container.addEventListener('change', e => {
-        if (e.target.matches('input[type=checkbox]')) refreshSummary();
-      });
       container.querySelector('#printSelAll').addEventListener('click', () => {
         container.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = true);
-        refreshSummary();
+        refreshPrintSummary();
       });
       container.querySelector('#printSelNone').addEventListener('click', () => {
         container.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = false);
-        refreshSummary();
+        refreshPrintSummary();
       });
       container.querySelector('#printSelectedBtn').addEventListener('click', onPrintSelected);
-      refreshSummary();
+      refreshPrintSummary();
+    }
+
+    function refreshPrintSummary() {
+      const container = document.getElementById('printResults');
+      const countEl = container.querySelector('#printSelCount');
+      if (!countEl) return;
+      const checked = Array.from(container.querySelectorAll('input[type=checkbox]:checked'));
+      const total = checked.reduce((s, cb) => s + state.printPending[Number(cb.dataset.i)].amount, 0);
+      countEl.textContent = checked.length;
+      container.querySelector('#printSelTotal').innerHTML = '&#8369;' + fmtAmt(total);
     }
 
     function applySeries() {
@@ -1941,6 +1995,75 @@
       const updates = selected.map(c => ({ rowIndex: c.rowIndex, checkNumber: c.checkNumber }));
       api('printChecks', { updates }).catch(err => {
         showToast('printToast', 'Save failed: ' + (err.message || err) + ' — check numbers may not be stored.', 'error');
+      });
+    }
+
+    // ==================== Delete ====================
+
+    async function deleteCheck(c, toastId) {
+      if (!c) return;
+      const label = [c.supplier, c.checkDate, c.checkNumber ? '#' + c.checkNumber : '',
+        '₱' + fmtAmt(c.amount)].filter(Boolean).join(' · ');
+      if (!confirm('Delete this check?\n\n' + label +
+        '\n\nThis removes it from the sheet and can\'t be undone.')) return;
+      showToast(toastId, 'Deleting ' + label + '…', 'success');
+      try {
+        await api('deleteCheck', {
+          rowIndex: c.rowIndex, supplier: c.supplier, checkNumber: c.checkNumber,
+          checkDate: c.checkDate, amount: c.amount
+        });
+      } catch (err) {
+        showToast(toastId, '✗ Delete failed: ' + (err.message || err), 'error');
+        return;
+      }
+      forgetDeletedRow(c.rowIndex);
+      showToast(toastId, '✓ Deleted — ' + label, 'success');
+    }
+
+    // Rows below a deleted sheet row move up by one. Drop the deleted check
+    // from every list, shift the others, and redraw only lists that changed
+    // (keeping checkbox selections and typed check numbers).
+    function forgetDeletedRow(rowIndex) {
+      const remap = r => (r === rowIndex ? null : r > rowIndex ? r - 1 : r);
+      const update = (key, containerId, render, afterRender) => {
+        const before = state[key];
+        if (!before.some(c => c.rowIndex >= rowIndex)) return;
+        const ui = snapshotRows(containerId);
+        state[key] = before.filter(c => c.rowIndex !== rowIndex);
+        state[key].forEach(c => { c.rowIndex = remap(c.rowIndex); });
+        render();
+        restoreRows(containerId, ui, remap);
+        if (afterRender) afterRender();
+      };
+      if (state.editingRowIndex === rowIndex) state.editingRowIndex = null;
+      else if (state.editingRowIndex) state.editingRowIndex = remap(state.editingRowIndex);
+      if (state.viewerQuery && state.viewerMatches.some(c => c.rowIndex === rowIndex)) state.viewerTotal--;
+
+      update('printPending', 'printResults', renderPrintPending, refreshPrintSummary);
+      update('viewerMatches', 'vResults', renderViewerMatches);
+      update('reportChecks', 'rResults', renderReportResults, updateReportSummary);
+    }
+
+    function snapshotRows(containerId) {
+      const snap = new Map();
+      document.querySelectorAll('#' + containerId + ' [data-row]').forEach(el => {
+        const cb = el.querySelector('input[type=checkbox]');
+        const num = el.querySelector('.addnum-input');
+        snap.set(Number(el.dataset.row), { checked: cb ? cb.checked : null, num: num ? num.value : null });
+      });
+      return snap;
+    }
+
+    function restoreRows(containerId, snap, remap) {
+      snap.forEach((v, oldRow) => {
+        const row = remap(oldRow);
+        if (row === null) return;
+        const el = document.querySelector('#' + containerId + ' [data-row="' + row + '"]');
+        if (!el) return;
+        const cb = el.querySelector('input[type=checkbox]');
+        const num = el.querySelector('.addnum-input');
+        if (cb && v.checked !== null) cb.checked = v.checked;
+        if (num && v.num !== null) num.value = v.num;
       });
     }
 

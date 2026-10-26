@@ -28,7 +28,8 @@ function doPost(e) {
     switch (req.action) {
       case 'getLists':         return json(getLists_());
       case 'saveCheck':        return json(saveCheck_(req.payload || {}));
-      case 'findChecks':       return json(findChecks_(req.payload || {}));
+      case 'viewerSearch':     return json(viewerSearch_(req.payload || {}));
+      case 'deleteCheck':      return json(deleteCheck_(req.payload || {}));
       case 'updateCheck':      return json(updateCheck_(req.payload || {}));
       case 'searchChecks':     return json(searchChecks_(req.payload || {}));
       case 'getPendingPrint':  return json(getPendingPrint_());
@@ -78,16 +79,52 @@ function saveCheck_(p) {
   return { ok: true, rowIndex: row };
 }
 
-function findChecks_(p) {
+// Viewer search across every column, newest entries first. An empty query
+// returns the 10 most recently entered checks.
+function viewerSearch_(p) {
   ensureSheets_();
-  const checkNumber = String(p.checkNumber || '').trim();
-  if (!checkNumber) throw new Error('Check number is required.');
+  const q = String(p.q || '').trim().toLowerCase();
+  const qNoCommas = q.replace(/,/g, '');
+  const rows = readChecks_().reverse();
+  if (!q) {
+    return { checks: rows.slice(0, 10).map(r => rowToCheck_(r.row, r.rowIndex)), total: rows.length };
+  }
+  const matches = [];
+  rows.forEach(r => {
+    const c = rowToCheck_(r.row, r.rowIndex);
+    const hay = [
+      c.supplier, c.checkNumber, c.bank, c.checkDate, c.orderMonth, c.notes,
+      c.amount.toFixed(2),
+      c.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    ].join('\n').toLowerCase();
+    if (hay.indexOf(q) !== -1 || (qNoCommas && hay.indexOf(qNoCommas) !== -1)) matches.push(c);
+  });
+  return { checks: matches.slice(0, 100), total: matches.length };
+}
 
-  const rows = readChecks_();
-  const matches = rows
-    .filter(r => String(r.row[4] || '').trim() === checkNumber)
-    .map(r => rowToCheck_(r.row, r.rowIndex));
-  return { matches };
+// Deletes one row. The caller sends the fields it is showing so a stale
+// rowIndex (rows shift after any delete) can't remove the wrong check.
+function deleteCheck_(p) {
+  ensureSheets_();
+  const lock = LockService.getDocumentLock();
+  lock.waitLock(10000);
+  try {
+    const rowIndex = Number(p.rowIndex);
+    const checks = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_CHECKS);
+    if (!rowIndex || rowIndex < 2 || rowIndex > checks.getLastRow()) {
+      throw new Error('That check no longer exists. Reload and try again.');
+    }
+    const c = rowToCheck_(checks.getRange(rowIndex, 1, 1, CHECK_HEADERS.length).getValues()[0], rowIndex);
+    const same = c.supplier === String(p.supplier || '') &&
+      c.checkNumber === String(p.checkNumber || '').trim() &&
+      c.checkDate === String(p.checkDate || '') &&
+      Math.abs(c.amount - Number(p.amount || 0)) < 0.005;
+    if (!same) throw new Error('That check changed in the sheet. Reload and try again.');
+    checks.deleteRow(rowIndex);
+    return { ok: true };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function updateCheck_(p) {
