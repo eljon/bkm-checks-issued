@@ -678,7 +678,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>BKM Checks Issued <span class="version">v3</span></h1>
+    <h1>BKM Checks Issued <span class="version">v4</span></h1>
 
     <div class="tabs">
       <button type="button" class="tab active" data-tab="enter">Enter</button>
@@ -1015,11 +1015,20 @@
       wordsX: 23, wordsMaxX: 182.5, wordsBaseline: 32.3, wordsPt: 10, wordsMinPt: 6
     };
 
-    // The printout comes out scaled relative to the CSS overlay. Measured by
-    // comparing two earlier prints on the physical check with the overlay
-    // positions that produced them (8 fields, all within ~2mm):
+    // Maps CSS overlay mm to where ink lands on the check:
     //   checkX = sx * overlayX + bx,  checkY = sy * overlayY + by
-    const PRINT_CAL = { sx: 0.923, bx: 12.65, sy: 0.913, by: 0.70 };
+    // mac: measured from prints on the physical check (8 fields, ~2mm).
+    //   macOS shrinks the full-bleed letter page ~8% about the page center
+    //   to fit the printer's printable area.
+    // windows: Windows prints at 100% (no shrink). Derived from the mac fit
+    //   by removing that center scaling.
+    const PRINT_CALS = {
+      mac: { sx: 0.923, bx: 12.65, sy: 0.913, by: 0.70 },
+      windows: { sx: 1, bx: 1.89, sy: 1, by: -2.91 }
+    };
+    const PRINT_CAL = /win/i.test(
+      (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || ''
+    ) ? PRINT_CALS.windows : PRINT_CALS.mac;
 
     const MM_PER_PT = 0.35278;
     const COURIER_ADVANCE = 0.6;   // glyph width, em
