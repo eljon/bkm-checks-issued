@@ -227,6 +227,41 @@
       border-radius: 6px;
     }
     .btn-del-sm:hover:not(:disabled) { background: #fef2f2; }
+    .btn-sm {
+      width: auto;
+      margin: 0;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      background: white;
+      color: var(--primary);
+      border: 1px solid #93c5fd;
+      border-radius: 6px;
+    }
+    .btn-sm:hover:not(:disabled) { background: #eff6ff; }
+
+    /* Compact Viewer card */
+    .card.vcard { padding: 10px 14px; }
+    .card + .card.vcard { margin-top: 8px; }
+    .vcard-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 10px;
+    }
+    .vcard-name { font-weight: 600; font-size: 15px; word-break: break-word; }
+    .vcard-amt { font-weight: 700; font-size: 15px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .vcard-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 10px;
+      margin-top: 4px;
+    }
+    .vcard-meta { color: var(--muted); font-size: 12px; line-height: 1.4; min-width: 0; }
+    .vcard-notes { font-style: italic; word-break: break-word; }
+    .vcard-nonum { color: #b45309; }
+    .vcard-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
     .check-row {
       display: grid;
@@ -706,7 +741,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>BKM Checks Issued <span class="version">v10</span></h1>
+    <h1>BKM Checks Issued <span class="version">v11</span></h1>
 
     <div class="tabs">
       <button type="button" class="tab active" data-tab="enter">Enter</button>
@@ -1370,18 +1405,24 @@
     }
 
     function renderViewCard(c, i) {
-      return `<div class="card" data-row="${c.rowIndex}">
-        <div class="check-row"><span class="lbl">Supplier</span><span class="val">${escapeHtml(c.supplier)}</span></div>
-        <div class="check-row"><span class="lbl">Order Month</span><span class="val">${escapeHtml(formatOrderMonth(c.orderMonth) || '—')}</span></div>
-        <div class="check-row"><span class="lbl">Check Date</span><span class="val">${escapeHtml(c.checkDate)}</span></div>
-        <div class="check-row"><span class="lbl">Check #</span><span class="val">${escapeHtml(c.checkNumber || '—')}</span></div>
-        <div class="check-row"><span class="lbl">Bank</span><span class="val">${escapeHtml(c.bank)}</span></div>
-        <div class="check-row"><span class="lbl">Amount</span><span class="val">&#8369;${fmtAmt(c.amount)}</span></div>
-        <div class="check-row"><span class="lbl">Notes</span><span class="val">${escapeHtml(c.notes || '—')}</span></div>
-        <div class="actions three">
-          <button type="button" class="btn-secondary" data-action="edit" data-i="${i}">Edit</button>
-          <button type="button" class="btn-secondary" data-action="print" data-i="${i}">Print</button>
-          <button type="button" class="btn-danger" data-action="delete" data-i="${i}">Delete</button>
+      const meta = [
+        escapeHtml(c.checkDate),
+        c.checkNumber ? '#' + escapeHtml(c.checkNumber) : '<span class="vcard-nonum">no check #</span>',
+        escapeHtml(c.bank),
+        c.orderMonth ? 'Order ' + escapeHtml(formatOrderMonth(c.orderMonth)) : ''
+      ].filter(Boolean).join(' · ');
+      return `<div class="card vcard" data-row="${c.rowIndex}">
+        <div class="vcard-top">
+          <span class="vcard-name">${escapeHtml(c.supplier)}</span>
+          <span class="vcard-amt">&#8369;${fmtAmt(c.amount)}</span>
+        </div>
+        <div class="vcard-bottom">
+          <div class="vcard-meta">${meta}${c.notes ? '<div class="vcard-notes">' + escapeHtml(c.notes) + '</div>' : ''}</div>
+          <div class="vcard-actions">
+            <button type="button" class="btn-sm" data-action="edit" data-i="${i}">Edit</button>
+            <button type="button" class="btn-sm" data-action="print" data-i="${i}">Print</button>
+            <button type="button" class="btn-del-sm" data-action="delete" data-i="${i}">Delete</button>
+          </div>
         </div>
       </div>`;
     }
