@@ -660,14 +660,18 @@
         page-break-after: auto;
         break-after: auto;
       }
+      /* Keep the un-rotated box at left: 0 so it never extends past the page
+         width; the translate puts the rotated result in the centered slot.
+         If the un-rotated box overflows the page, Chrome shrinks multi-page
+         prints (~0.87x) to fit and every field lands in the wrong place. */
       body.printing-checks .pc-overlay {
         position: absolute;
         top: var(--check-y-offset);
-        left: calc((100% - var(--check-slot-w)) / 2 + var(--check-x-offset));
+        left: 0;
         width: var(--check-w);
         height: var(--check-h);
         transform-origin: 0 0;
-        transform: translate(var(--check-slot-w), 0) rotate(90deg);
+        transform: translate(calc((8.5in + var(--check-slot-w)) / 2 + var(--check-x-offset)), 0) rotate(90deg);
         font-family: "Courier New", Courier, monospace;
         color: #000;
       }
@@ -681,7 +685,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>BKM Checks Issued <span class="version">v7</span></h1>
+    <h1>BKM Checks Issued <span class="version">v8</span></h1>
 
     <div class="tabs">
       <button type="button" class="tab active" data-tab="enter">Enter</button>
