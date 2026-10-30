@@ -739,7 +739,7 @@
        Letter paper, portrait. The check is fed portrait, centered, LEFT edge
        of the check first. The overlay below is rotated 90° CW into a slot at
        the top-center of the page. Do not change these structural values:
-       the field calibration in CHECK_LAYOUT / PRINT_CAL (JS) was measured
+       the field calibration in CHECK_LAYOUT / PRINT_CALS (JS) was measured
        against exactly this geometry. Field positions live in the JS. */
     :root {
       --check-w: 175mm;
@@ -794,6 +794,14 @@
         font-family: "Courier New", Courier, monospace;
         color: #000;
       }
+      /* Landscape feed: the check enters long edge first (top edge leading),
+         so the overlay is simply the top of the page, unrotated. */
+      body.printing-checks.feed-landscape .pc-overlay {
+        top: 0;
+        width: 8.5in;
+        height: 100mm;
+        transform: none;
+      }
 
       .busy-overlay, .save-queue { display: none !important; }
 
@@ -806,7 +814,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>BKM Checks Issued <span class="version">v13</span></h1>
+    <h1>BKM Checks Issued <span class="version">v14</span></h1>
     <div class="save-queue hidden" id="saveQueue" role="status" aria-live="polite"></div>
 
     <div class="tabs">
@@ -975,6 +983,14 @@
           <div class="list-bar-summary"><strong id="printPendingCount">0</strong> pending print</div>
           <div class="list-bar-actions">
             <button type="button" id="printReloadBtn">Reload</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>How the check goes into the printer <span class="opt">(saved on this computer)</span></label>
+          <div class="seg-toggle" id="feedToggle" style="margin-bottom:0;">
+            <button type="button" class="seg" data-mode="portrait">Portrait · left edge first</button>
+            <button type="button" class="seg" data-mode="landscape">Landscape · top edge first</button>
           </div>
         </div>
 
@@ -1164,25 +1180,47 @@
 
     // Maps CSS overlay mm to where ink lands on the check:
     //   checkX = sx * overlayX + bx,  checkY = sy * overlayY + by
-    // Both measured from prints on the physical check. Each OS shrinks the
-    // letter page slightly differently and anchors it differently.
+    // Each OS shrinks and anchors the letter page differently.
+    // portrait (check fed short edge first, overlay rotated), measured:
     //   mac: 8 fields across two prints, ~2mm.
     //   windows: 8 date digits + amount + words from one v4 print.
+    // landscape (check fed long edge first, top edge leading, centered;
+    //   overlay unrotated): derived from the portrait fits, since those
+    //   describe the page-to-paper mapping, which doesn't depend on how the
+    //   check is loaded. Not yet confirmed by a print.
     const PRINT_CALS = {
-      mac: { sx: 0.923, bx: 12.65, sy: 0.913, by: 0.70 },
-      windows: { sx: 0.956, bx: -1.37, sy: 0.921, by: -0.12 }
+      mac: {
+        portrait: { sx: 0.923, bx: 12.65, sy: 0.913, by: 0.70 },
+        landscape: { sx: 0.913, bx: 2.55, sy: 0.923, by: 12.65 }
+      },
+      windows: {
+        portrait: { sx: 0.956, bx: -1.37, sy: 0.921, by: -0.12 },
+        landscape: { sx: 0.921, bx: 2.18, sy: 0.956, by: -1.37 }
+      }
     };
-    const PRINT_CAL = /win/i.test(
+    const PRINT_OS = /win/i.test(
       (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || ''
-    ) ? PRINT_CALS.windows : PRINT_CALS.mac;
+    ) ? 'windows' : 'mac';
+
+    // How the check is loaded into the printer; remembered per computer.
+    let checkFeed = 'portrait';
+    try { if (localStorage.getItem('bkm_feed') === 'landscape') checkFeed = 'landscape'; } catch (_) {}
+
+    function setCheckFeed(mode) {
+      checkFeed = mode === 'landscape' ? 'landscape' : 'portrait';
+      try { localStorage.setItem('bkm_feed', checkFeed); } catch (_) {}
+      document.body.classList.toggle('feed-landscape', checkFeed === 'landscape');
+    }
+
+    function printCal() { return PRINT_CALS[PRINT_OS][checkFeed]; }
 
     const MM_PER_PT = 0.35278;
     const COURIER_ADVANCE = 0.6;   // glyph width, em
     const COURIER_ASCENT = 0.8325; // baseline offset from line-box top, em
     const COURIER_CAP_MID = 0.2855; // digit/cap vertical middle above baseline, em
 
-    function ovX(x) { return (x - PRINT_CAL.bx) / PRINT_CAL.sx; }
-    function ovY(y) { return (y - PRINT_CAL.by) / PRINT_CAL.sy; }
+    function ovX(x) { const c = printCal(); return (x - c.bx) / c.sx; }
+    function ovY(y) { const c = printCal(); return (y - c.by) / c.sy; }
 
     // Font size (pt) that fits `text` inside `widthOv` mm of overlay space.
     function fitPt(text, widthOv, maxPt, minPt) {
@@ -1933,6 +1971,9 @@
       document.getElementById('printReloadBtn').addEventListener('click', () =>
         loadPendingPrint().catch(err => showToast('printToast', err.message, 'error'))
       );
+      setCheckFeed(checkFeed);
+      document.querySelector('#feedToggle .seg[data-mode="' + checkFeed + '"]').classList.add('active');
+      setupSegToggle('feedToggle', setCheckFeed);
       const seriesCb = document.getElementById('seriesMode');
       const wrap = document.getElementById('seriesInputWrap');
       seriesCb.addEventListener('change', () => {
