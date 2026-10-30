@@ -824,7 +824,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>BKM Checks Issued <span class="version">v16</span></h1>
+    <h1>BKM Checks Issued <span class="version">v17</span></h1>
     <div class="save-queue hidden" id="saveQueue" role="status" aria-live="polite"></div>
 
     <div class="tabs">
@@ -1190,6 +1190,21 @@
       wordsX: 23, wordsMaxX: 182.5, wordsBaseline: 32.3, wordsPt: 10, wordsMinPt: 6
     };
 
+    // Same targets for 3 x 8 in paper, in page mm, read off a BDO check
+    // against the v16 alignment ruler (Mac, "Cheque" paper, default
+    // margins/scale): date box centers from the M/D/Y labels, amount
+    // centered in its box (17.2-24.3), payee/words just above their lines
+    // (25.1 / ~32.6). CHECK_LAYOUT above is in the frame of the letter
+    // calibration and is not physical mm, so it can't be reused here.
+    const CHECK_LAYOUT_PAPER = {
+      dateBoxX: [151.8, 156.8, 163.8, 168.9, 176.4, 181.4, 186.4, 191.3],
+      dateBoxY: 12.7,
+      datePt: 10,
+      payeeX: 32.2, payeeMaxX: 136, payeeBaseline: 24.4, payeePt: 12,
+      amountX: 147.3, amountMaxX: 191.6, amountBaseline: 21.9, amountPt: 11,
+      wordsX: 24.8, wordsMaxX: 192.5, wordsBaseline: 32.0, wordsPt: 10, wordsMinPt: 6
+    };
+
     // Maps CSS overlay mm to where ink lands on the check:
     //   checkX = sx * overlayX + bx,  checkY = sy * overlayY + by
     // Each OS shrinks and anchors the letter page differently.
@@ -1264,7 +1279,7 @@
     }
 
     function pcCheckFields(c) {
-      const L = CHECK_LAYOUT;
+      const L = checkFeed === 'check' ? CHECK_LAYOUT_PAPER : CHECK_LAYOUT;
       const amt = Number(c.amount) || 0;
       const digits = formatCheckDate(c.checkDate || '').replace(/\D/g, '');
       const payee = String(c.supplier || '').toUpperCase();
