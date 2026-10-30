@@ -824,7 +824,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>BKM Checks Issued <span class="version">v15</span></h1>
+    <h1>BKM Checks Issued <span class="version">v16</span></h1>
     <div class="save-queue hidden" id="saveQueue" role="status" aria-live="polite"></div>
 
     <div class="tabs">
@@ -1002,6 +1002,7 @@
             <button type="button" class="seg" data-mode="portrait">Letter</button>
             <button type="button" class="seg" data-mode="check">3 × 8 in (check size)</button>
           </div>
+          <button type="button" id="printRulerBtn" style="margin-top:8px;">Print 3 × 8 in alignment ruler</button>
         </div>
 
         <label class="toggle-row" for="seriesMode">
@@ -1297,6 +1298,55 @@
         fitPt(words, wW, L.wordsPt, L.wordsMinPt), { bold: true });
 
       return html;
+    }
+
+    // Diagnostic 3 x 8 in page: mm rulers drawn in check coordinates with no
+    // calibration applied, so a print shows exactly where each page
+    // position lands on the paper (offset, scale, clipping, skew).
+    function rulerSvg() {
+      let g = '<rect x="0.3" y="0.3" width="199.4" height="75.6" fill="none" stroke="#000" stroke-width="0.3"/>';
+      const tick = (x1, y1, x2, y2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+      const label = (x, y, t) => `<text x="${x}" y="${y}">${t}</text>`;
+      // Along the check (x): rulers with ticks pointing up, labels above.
+      const rows = [15, 45, 70];
+      rows.forEach(y => {
+        g += tick(0, y, 200, y);
+        for (let x = 0; x <= 200; x++) {
+          const len = x % 10 === 0 ? 4 : x % 5 === 0 ? 2.5 : 1.2;
+          g += tick(x, y, x, y - len);
+          if (x % 10 === 0 && x > 0 && x < 200) g += label(x, y - 5, x);
+        }
+      });
+      // Across the check (y): rulers near both ends and in the middle;
+      // labels on the inward side, skipped where they'd hit a row's labels.
+      [[3, 1], [105, 1], [197, -1]].forEach(([x, dir]) => {
+        g += tick(x, 0, x, 76);
+        for (let y = 0; y <= 76; y++) {
+          const len = y % 10 === 0 ? 4 : y % 5 === 0 ? 2.5 : 1.2;
+          g += tick(x, y, x + dir * len, y);
+          if (y % 10 === 0 && y > 0 && !rows.some(r => Math.abs(r - 5 - y) < 4 || Math.abs(r - y) < 3)) {
+            g += `<text x="${x + dir * 5}" y="${y + 1.1}" text-anchor="${dir > 0 ? 'start' : 'end'}">${y}</text>`;
+          }
+        }
+      });
+      // translate+rotate maps check (x, y) to page (76.2 - y, x), as in pcPos.
+      return '<svg xmlns="http://www.w3.org/2000/svg" width="76.2mm" height="200mm" viewBox="0 0 76.2 200" ' +
+        'style="position:absolute;top:0;left:0;">' +
+        '<g transform="translate(76.2,0) rotate(90)" stroke="#000" stroke-width="0.15" ' +
+        'font-family="Arial, Helvetica, sans-serif" font-size="3" text-anchor="middle">' +
+        g.replace(/<text /g, '<text stroke="none" fill="#000" ') +
+        '</g></svg>';
+    }
+
+    function printRuler() {
+      document.getElementById('printChecks').innerHTML =
+        `<div class="print-check-page"><div class="pc-overlay">${rulerSvg()}</div></div>`;
+      document.body.classList.add('feed-check');
+      try {
+        printPage('printing-checks', 'size: 3in 8in; margin: 0;');
+      } finally {
+        document.body.classList.toggle('feed-check', checkFeed === 'check');
+      }
     }
 
     // One letter page per check; each page holds the rotated overlay.
@@ -1997,6 +2047,7 @@
       setCheckFeed(checkFeed);
       document.querySelector('#feedToggle .seg[data-mode="' + checkFeed + '"]').classList.add('active');
       setupSegToggle('feedToggle', setCheckFeed);
+      document.getElementById('printRulerBtn').addEventListener('click', printRuler);
       const seriesCb = document.getElementById('seriesMode');
       const wrap = document.getElementById('seriesInputWrap');
       seriesCb.addEventListener('change', () => {
