@@ -794,6 +794,13 @@
         font-family: "Courier New", Courier, monospace;
         color: #000;
       }
+      /* Corporate sheet: the page is the sheet (width/height set inline),
+         fields placed directly in sheet mm, nothing rotated. */
+      body.printing-checks.check-corp .pc-overlay {
+        width: 100%;
+        height: 100%;
+        transform: none;
+      }
 
       .busy-overlay, .save-queue { display: none !important; }
 
@@ -806,7 +813,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>BKM Checks Issued <span class="version">v20</span></h1>
+    <h1>BKM Checks Issued <span class="version">v21</span></h1>
     <div class="save-queue hidden" id="saveQueue" role="status" aria-live="polite"></div>
 
     <div class="tabs">
@@ -978,7 +985,14 @@
           </div>
         </div>
 
-        <p style="margin:0 0 12px;color:var(--muted);font-size:13px;">In the print dialog choose Paper size <strong>Letter</strong>, Margins Default, Scale Default. Feed the check left edge first, centered.</p>
+        <div class="field">
+          <label>Check paper <span class="opt">(saved on this computer)</span></label>
+          <div class="seg-toggle" id="checkTypeToggle" style="margin-bottom:6px;">
+            <button type="button" class="seg" data-mode="corp">Corporate sheet (8 × 11.5 in)</button>
+            <button type="button" class="seg" data-mode="single">Single check</button>
+          </div>
+          <p id="printPaperHint" style="margin:0;color:var(--muted);font-size:13px;"></p>
+        </div>
 
         <label class="toggle-row" for="seriesMode">
           <span class="switch">
@@ -1142,7 +1156,9 @@
     }
 
     function printChecksBatch() {
-      printPage('printing-checks', 'size: letter; margin: 0;');
+      const p = corpPaper();
+      printPage('printing-checks', checkType === 'corp'
+        ? `size: ${p.w}mm ${p.h}mm; margin: 0;` : 'size: letter; margin: 0;');
     }
 
     function printReport() {
@@ -1196,19 +1212,77 @@
       return Math.max(minPt || 1, Math.min(maxPt, fit));
     }
 
-    // One line of text with its baseline at `baselineCheck` (check mm).
-    function pcLine(text, leftOv, widthOv, baselineCheck, pt, opts) {
-      const emOv = pt * MM_PER_PT;
-      const top = ovY(baselineCheck) - COURIER_ASCENT * emOv;
+    // BDO Corporate Check Printing sheet: 8 x 11.5 in (203.2 x 292.1mm),
+    // portrait, fed top edge (Acknowledgement Receipt) first, with the check
+    // across the bottom. Targets in mm from the sheet's left and top edges,
+    // measured from a photo of a blank sheet mapped through its four
+    // corners: date box centers from the M/D/Y labels (boxes 223.4-228.0),
+    // amount centered in its box (143.1-194.4 x 230.9-238.2), payee/words
+    // just above their lines (238.0 / ~246.0). Left-to-right positions
+    // match the single check's ruler measurements to ~0.5mm.
+    const CORP_LAYOUT = {
+      dateBoxX: [152.1, 157.0, 164.3, 169.3, 176.6, 181.6, 186.8, 191.9],
+      dateBoxY: 225.7,
+      datePt: 10,
+      payeeX: 32.2, payeeMaxX: 136, payeeBaseline: 237.3, payeePt: 12,
+      amountX: 147.3, amountMaxX: 192.2, amountBaseline: 235.7, amountPt: 11,
+      wordsX: 24.8, wordsMaxX: 192.5, wordsBaseline: 245.3, wordsPt: 10, wordsMinPt: 6
+    };
+    const CORP_W = 203.2;
+
+    // Paper size to pick in Chrome for the corporate sheet. Mac custom
+    // sizes print 1:1 (the v17 3 x 8 in print lined up). Windows Chrome has
+    // no custom sizes, so it uses Letter with the 8 in sheet centered.
+    const CORP_PAPERS = {
+      mac: { name: 'BDO Corporate (the 8 × 11.5 in custom size)', w: 203.2, h: 292.1 },
+      windows: { name: 'Letter', w: 215.9, h: 279.4 }
+    };
+
+    // Maps CSS page mm (from the sheet's left edge) to where ink lands:
+    //   sheetX = sx * pageX + bx,  sheetY = sy * pageY + by
+    //   mac: 1:1, as custom-size prints have been.
+    //   windows: assumed 1:1, not yet confirmed by a print.
+    const CORP_CALS = {
+      mac: { sx: 1, bx: 0, sy: 1, by: 0 },
+      windows: { sx: 1, bx: 0, sy: 1, by: 0 }
+    };
+
+    function corpPaper() { return CORP_PAPERS[PRINT_OS]; }
+    function corpX(x) {
+      const c = CORP_CALS[PRINT_OS];
+      return (corpPaper().w - CORP_W) / 2 + (x - c.bx) / c.sx;
+    }
+    function corpY(y) { const c = CORP_CALS[PRINT_OS]; return (y - c.by) / c.sy; }
+
+    // Which check stock is printed on; remembered per computer.
+    let checkType = 'corp';
+    try { if (localStorage.getItem('bkm_check_type') === 'single') checkType = 'single'; } catch (_) {}
+
+    function setCheckType(mode) {
+      checkType = mode === 'single' ? 'single' : 'corp';
+      try { localStorage.setItem('bkm_check_type', checkType); } catch (_) {}
+      document.body.classList.toggle('check-corp', checkType === 'corp');
+      document.getElementById('printPaperHint').innerHTML = checkType === 'corp'
+        ? `Paper size <strong>${escapeHtml(corpPaper().name)}</strong>, Margins Default, Scale Default. ` +
+          'Feed the sheet top edge (Acknowledgement Receipt) first, face up.'
+        : 'Paper size <strong>Letter</strong>, Margins Default, Scale Default. ' +
+          'Feed the check left edge first, centered.';
+    }
+
+    // One line of text with its baseline at page mm `baseline`.
+    function pcLine(text, left, width, baseline, pt, opts) {
+      const em = pt * MM_PER_PT;
+      const top = baseline - COURIER_ASCENT * em;
       const align = (opts && opts.align) || 'left';
       const weight = (opts && opts.bold) ? 'bold' : 'normal';
-      return `<div class="pc-field" style="left:${leftOv.toFixed(2)}mm;top:${top.toFixed(2)}mm;` +
-        `width:${widthOv.toFixed(2)}mm;text-align:${align};font-size:${pt.toFixed(2)}pt;` +
+      return `<div class="pc-field" style="left:${left.toFixed(2)}mm;top:${top.toFixed(2)}mm;` +
+        `width:${width.toFixed(2)}mm;text-align:${align};font-size:${pt.toFixed(2)}pt;` +
         `font-weight:${weight};">${escapeHtml(text)}</div>`;
     }
 
-    function pcCheckFields(c) {
-      const L = CHECK_LAYOUT;
+    // Fields for one check. L holds the targets; fx/fy map a target's x/y
+    // to the mm position within the overlay/page it is drawn on.
+    function pcCheckFields(c, L, fx, fy) {
       const amt = Number(c.amount) || 0;
       const digits = formatCheckDate(c.checkDate || '').replace(/\D/g, '');
       const payee = String(c.supplier || '').toUpperCase();
@@ -1221,37 +1295,43 @@
 
       // Date: one digit centered in each box.
       const dEm = L.datePt * MM_PER_PT;
-      const dTop = ovY(L.dateBoxY) - (COURIER_ASCENT - COURIER_CAP_MID) * dEm;
+      const dTop = fy(L.dateBoxY) - (COURIER_ASCENT - COURIER_CAP_MID) * dEm;
       const dW = COURIER_ADVANCE * dEm;
       digits.slice(0, 8).split('').forEach((d, i) => {
-        const left = ovX(L.dateBoxX[i]) - dW / 2;
+        const left = fx(L.dateBoxX[i]) - dW / 2;
         html += `<div class="pc-field" style="left:${left.toFixed(2)}mm;top:${dTop.toFixed(2)}mm;` +
           `font-size:${L.datePt}pt;font-weight:bold;">${d}</div>`;
       });
 
-      const payL = ovX(L.payeeX), payW = ovX(L.payeeMaxX) - payL;
-      html += pcLine(payee, payL, payW, L.payeeBaseline,
+      const payL = fx(L.payeeX), payW = fx(L.payeeMaxX) - payL;
+      html += pcLine(payee, payL, payW, fy(L.payeeBaseline),
         fitPt(payee, payW, L.payeePt, 6), { bold: true });
 
-      const amtL = ovX(L.amountX), amtW = ovX(L.amountMaxX) - amtL;
-      html += pcLine(amtText, amtL, amtW, L.amountBaseline,
+      const amtL = fx(L.amountX), amtW = fx(L.amountMaxX) - amtL;
+      html += pcLine(amtText, amtL, amtW, fy(L.amountBaseline),
         fitPt(amtText, amtW, L.amountPt, 7), { align: 'right', bold: true });
 
-      const wL = ovX(L.wordsX), wW = ovX(L.wordsMaxX) - wL;
-      html += pcLine(words, wL, wW, L.wordsBaseline,
+      const wL = fx(L.wordsX), wW = fx(L.wordsMaxX) - wL;
+      html += pcLine(words, wL, wW, fy(L.wordsBaseline),
         fitPt(words, wW, L.wordsPt, L.wordsMinPt), { bold: true });
 
       return html;
     }
 
-    // One letter page per check; each page holds the rotated overlay.
+    // One page per check: a corporate sheet page with the fields placed
+    // directly, or a letter page holding the rotated single-check overlay.
     // Pages are in reverse order: the first check of the series goes on the
     // last page, which is the first one fed for multi-page jobs.
     function fillChecksBatch(checks) {
       const container = document.getElementById('printChecks');
-      container.innerHTML = (checks || []).slice().reverse().map(c =>
-        `<div class="print-check-page"><div class="pc-overlay">${pcCheckFields(c)}</div></div>`
-      ).join('');
+      const corp = checkType === 'corp';
+      const p = corpPaper();
+      const pageStyle = corp ? ` style="width:${p.w}mm;height:${p.h - 10}mm;"` : '';
+      container.innerHTML = (checks || []).slice().reverse().map(c => {
+        const fields = corp ? pcCheckFields(c, CORP_LAYOUT, corpX, corpY)
+          : pcCheckFields(c, CHECK_LAYOUT, ovX, ovY);
+        return `<div class="print-check-page"${pageStyle}><div class="pc-overlay">${fields}</div></div>`;
+      }).join('');
     }
 
     function formatCheckDate(iso) {
@@ -1936,6 +2016,9 @@
     // ==================== For Printing tab ====================
 
     function setupPrintTab() {
+      setCheckType(checkType);
+      document.querySelector('#checkTypeToggle .seg[data-mode="' + checkType + '"]').classList.add('active');
+      setupSegToggle('checkTypeToggle', setCheckType);
       document.getElementById('printReloadBtn').addEventListener('click', () =>
         loadPendingPrint().catch(err => showToast('printToast', err.message, 'error'))
       );
