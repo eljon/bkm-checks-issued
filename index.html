@@ -813,7 +813,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>BKM Checks Issued <span class="version">v22</span></h1>
+    <h1>BKM Checks Issued <span class="version">v23</span></h1>
     <div class="save-queue hidden" id="saveQueue" role="status" aria-live="polite"></div>
 
     <div class="tabs">
@@ -1240,9 +1240,12 @@
     // re-expressed in physical mm via the ruler-measured date boxes; the
     // OS print path decides this, not the paper fed. Windows across is
     // taken as 1:1 (the reference); this reproduces the single check's
-    // date/payee/words lines to ~1.5mm. Not yet confirmed on a sheet.
+    // date/payee/words lines to ~1.5mm.
+    // mac: refined from a v22 sheet print, which landed 1.2-2.1mm low
+    //   (mean 1.6) and 0.5mm (payee) to 1.4mm (last date digit) right.
+    // windows: not yet confirmed on a sheet.
     const CORP_CALS = {
-      mac: { sx: 0.9913, bx: 0.41, sy: 0.9757, by: 12.96 },
+      mac: { sx: 0.9960, bx: 0.66, sy: 0.9757, by: 14.56 },
       windows: { sx: 1, bx: 0, sy: 1.0106, by: -1.86 }
     };
 
