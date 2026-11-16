@@ -813,7 +813,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>BKM Checks Issued <span class="version">v21</span></h1>
+    <h1>BKM Checks Issued <span class="version">v22</span></h1>
     <div class="save-queue hidden" id="saveQueue" role="status" aria-live="polite"></div>
 
     <div class="tabs">
@@ -1230,27 +1230,26 @@
     };
     const CORP_W = 203.2;
 
-    // Paper size to pick in Chrome for the corporate sheet. Mac custom
-    // sizes print 1:1 (the v17 3 x 8 in print lined up). Windows Chrome has
-    // no custom sizes, so it uses Letter with the 8 in sheet centered.
-    const CORP_PAPERS = {
-      mac: { name: 'BDO Corporate (the 8 × 11.5 in custom size)', w: 203.2, h: 292.1 },
-      windows: { name: 'Letter', w: 215.9, h: 279.4 }
-    };
+    // The corporate sheet prints on Letter on both computers, with the 8 in
+    // sheet centered on the 8.5 in page.
+    const CORP_PAPER = { name: 'Letter', w: 215.9, h: 279.4 };
 
-    // Maps CSS page mm (from the sheet's left edge) to where ink lands:
-    //   sheetX = sx * pageX + bx,  sheetY = sy * pageY + by
-    //   mac: 1:1, as custom-size prints have been.
-    //   windows: assumed 1:1, not yet confirmed by a print.
+    // Maps CSS page mm to where ink lands on the paper (mm from its left
+    // and leading edges): paperX = sx * pageX + bx, paperY = sy * pageY + by.
+    // Derived from the aligned single-check Letter prints (PRINT_CALS),
+    // re-expressed in physical mm via the ruler-measured date boxes; the
+    // OS print path decides this, not the paper fed. Windows across is
+    // taken as 1:1 (the reference); this reproduces the single check's
+    // date/payee/words lines to ~1.5mm. Not yet confirmed on a sheet.
     const CORP_CALS = {
-      mac: { sx: 1, bx: 0, sy: 1, by: 0 },
-      windows: { sx: 1, bx: 0, sy: 1, by: 0 }
+      mac: { sx: 0.9913, bx: 0.41, sy: 0.9757, by: 12.96 },
+      windows: { sx: 1, bx: 0, sy: 1.0106, by: -1.86 }
     };
 
-    function corpPaper() { return CORP_PAPERS[PRINT_OS]; }
+    function corpPaper() { return CORP_PAPER; }
     function corpX(x) {
       const c = CORP_CALS[PRINT_OS];
-      return (corpPaper().w - CORP_W) / 2 + (x - c.bx) / c.sx;
+      return ((CORP_PAPER.w - CORP_W) / 2 + x - c.bx) / c.sx;
     }
     function corpY(y) { const c = CORP_CALS[PRINT_OS]; return (y - c.by) / c.sy; }
 
