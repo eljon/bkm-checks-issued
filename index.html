@@ -736,19 +736,9 @@
     }
 
     /* ---------- Check print overlay ----------
-       Letter paper, portrait. The check is fed portrait, centered, LEFT edge
-       of the check first. The overlay below is rotated 90° CW into a slot at
-       the top-center of the page. Do not change these structural values:
-       the field calibration in CHECK_LAYOUT / PRINT_CALS (JS) was measured
-       against exactly this geometry. Field positions live in the JS. */
-    :root {
-      --check-w: 175mm;
-      --check-h: 83mm;
-      --check-slot-w: 83mm;
-      --check-x-offset: 0mm;
-      --check-y-offset: 0mm;
-    }
-
+       Check-length paper (CHECK_PAPER in the JS), portrait. The check is fed
+       centered, LEFT edge of the check first, so it is the page turned 90°
+       clockwise. Page size, width and field positions live in the JS. */
     .print-checks { display: none; }
     .print-checks .pc-field {
       position: absolute;
@@ -761,15 +751,11 @@
       .container { display: none !important; }
 
       body.printing-checks .print-checks { display: block !important; }
-      /* Each check gets its own letter-sized page. The 175x83mm landscape
-         overlay is rotated 90° CW to fit the 83x175mm slot centered at the
-         top of the letter page where the check physically sits. */
-      /* Width must stay 8.5in (calibration depends on it). Height is just the
-         check area, so a page never spills onto a second sheet when the
-         printer adds margins or shrinks the page. */
+      /* One page per check; width is set inline to the paper width. Height
+         stays a little short of the paper so a page never spills onto a
+         second sheet. */
       body.printing-checks .print-check-page {
-        width: 8.5in;
-        height: 210mm;
+        height: 200mm;
         position: relative;
         overflow: hidden;
         page-break-after: always;
@@ -779,20 +765,21 @@
         page-break-after: auto;
         break-after: auto;
       }
-      /* Keep the un-rotated box at left: 0 so it never extends past the page
-         width; the translate puts the rotated result in the centered slot.
-         If the un-rotated box overflows the page, Chrome shrinks multi-page
-         prints (~0.87x) to fit and every field lands in the wrong place. */
+      /* Nothing is rotated as a box: each field is written top-to-bottom
+         with vertical text, so no layout box is ever wider than the page.
+         A box wider than the page makes Chrome shrink the whole print. */
       body.printing-checks .pc-overlay {
         position: absolute;
-        top: var(--check-y-offset);
+        top: 0;
         left: 0;
-        width: var(--check-w);
-        height: var(--check-h);
-        transform-origin: 0 0;
-        transform: translate(calc((8.5in + var(--check-slot-w)) / 2 + var(--check-x-offset)), 0) rotate(90deg);
+        width: 100%;
+        height: 100%;
         font-family: "Courier New", Courier, monospace;
         color: #000;
+      }
+      body.printing-checks .pc-field {
+        writing-mode: vertical-rl;
+        text-orientation: sideways;
       }
 
       .busy-overlay, .save-queue { display: none !important; }
@@ -806,7 +793,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>BKM Checks Issued <span class="version">v18</span></h1>
+    <h1>BKM Checks Issued <span class="version">v19</span></h1>
     <div class="save-queue hidden" id="saveQueue" role="status" aria-live="polite"></div>
 
     <div class="tabs">
@@ -978,7 +965,7 @@
           </div>
         </div>
 
-        <p style="margin:0 0 12px;color:var(--muted);font-size:13px;">Print on <strong>Letter</strong> with the check taped onto a Letter sheet: check's left edge flush with the sheet's top edge, centered (2¾ in from each side).</p>
+        <p style="margin:0 0 12px;color:var(--muted);font-size:13px;">In the print dialog choose Paper size <strong id="checkPaperName"></strong>, Margins Default, Scale Default. Feed the check left edge first, centered.</p>
 
         <label class="toggle-row" for="seriesMode">
           <span class="switch">
@@ -1142,45 +1129,56 @@
     }
 
     function printChecksBatch() {
-      printPage('printing-checks', 'size: letter; margin: 0;');
+      const p = checkPaper();
+      printPage('printing-checks', `size: ${p.w}mm ${p.h}mm; margin: 0;`);
     }
 
     function printReport() {
       printPage('printing-report', 'size: letter; margin: 0.75in;');
     }
 
-    // Target positions on the physical BDO check (203mm x 76mm, landscape,
-    // mm from the check's left and top edges), measured from the check.
+    // Target positions on the BDO check (203.2 x 76.2mm), in mm from the
+    // check's left and top edges, read off a check against a printed mm
+    // ruler (v16): date box centers from the M/D/Y labels, amount centered
+    // in its box (17.2-24.3), payee/words just above their lines (25.1 /
+    // ~32.6). Confirmed by a Mac print on 3 x 8 in paper (v17).
     const CHECK_LAYOUT = {
       // Center of each date box: M M - D D - Y Y Y Y
-      dateBoxX: [143.9, 148.6, 155.6, 160.2, 167.2, 172.0, 176.7, 181.3],
-      dateBoxY: 15.1,
+      dateBoxX: [151.8, 156.8, 163.8, 168.9, 176.4, 181.4, 186.4, 191.3],
+      dateBoxY: 12.7,
       datePt: 10,
       // PAY TO THE ORDER OF line
-      payeeX: 30, payeeMaxX: 130, payeeBaseline: 24.0, payeePt: 12,
+      payeeX: 32.2, payeeMaxX: 136, payeeBaseline: 24.4, payeePt: 12,
       // Amount box right of the peso sign, right-aligned inside the box
-      amountX: 139.5, amountMaxX: 181.7, amountBaseline: 24.0, amountPt: 11,
+      amountX: 147.3, amountMaxX: 191.6, amountBaseline: 21.9, amountPt: 11,
       // PESOS line
-      wordsX: 23, wordsMaxX: 182.5, wordsBaseline: 32.3, wordsPt: 10, wordsMinPt: 6
+      wordsX: 24.8, wordsMaxX: 192.5, wordsBaseline: 32.0, wordsPt: 10, wordsMinPt: 6
+    };
+    const CHECK_W = 76.2;
+
+    // Paper size the check is printed on, by the name it has in Chrome's
+    // Paper size list. Check-length paper feeds without jamming; Letter
+    // does not. Windows has no custom sizes in Chrome, so it uses the
+    // closest built-in size. The check is centered across the paper.
+    const CHECK_PAPERS = {
+      mac: { name: 'Cheque (the 3 × 8 in custom size)', w: 76.2, h: 203.2 },
+      windows: { name: 'Nagagata 4 3.54"x8.07"', w: 90, h: 205 }
     };
 
-    // Maps CSS overlay mm to where ink lands on the check:
-    //   checkX = sx * overlayX + bx,  checkY = sy * overlayY + by
-    // Each OS shrinks and anchors the letter page differently. Fitted with
-    // the check fed short edge first, centered, leading edge at the top of
-    // the page (a check taped flush and centered on a letter sheet is the
-    // same geometry):
-    //   mac: 8 fields across two prints, ~2mm.
-    //   windows: 8 date digits + amount + words from one v4 print.
+    // Maps CSS page mm to where ink lands on the check:
+    //   checkX = sx * pageX + bx,  checkY = sy * pageY + by
+    //   mac: 1:1, confirmed by a v17 print.
+    //   windows: assumed 1:1, not yet confirmed by a print.
     const PRINT_CALS = {
-      mac: { sx: 0.923, bx: 12.65, sy: 0.913, by: 0.70 },
-      windows: { sx: 0.956, bx: -1.37, sy: 0.921, by: -0.12 }
+      mac: { sx: 1, bx: 0, sy: 1, by: 0 },
+      windows: { sx: 1, bx: 0, sy: 1, by: 0 }
     };
     const PRINT_OS = /win/i.test(
       (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || ''
     ) ? 'windows' : 'mac';
 
     function printCal() { return PRINT_CALS[PRINT_OS]; }
+    function checkPaper() { return CHECK_PAPERS[PRINT_OS]; }
 
     const MM_PER_PT = 0.35278;
     const COURIER_ADVANCE = 0.6;   // glyph width, em
@@ -1196,14 +1194,25 @@
       return Math.max(minPt || 1, Math.min(maxPt, fit));
     }
 
+    // Position of a field box: `along` runs with the text (check x),
+    // `across` is the box's line-top edge (check y). The page is the check
+    // turned 90° clockwise, so check x runs down the page and check y runs
+    // leftward from the check's top edge, which sits (paper - check) / 2
+    // in from the page's right edge.
+    function pcPos(along, across, length) {
+      const right = (checkPaper().w - CHECK_W) / 2 + across;
+      return `top:${along.toFixed(2)}mm;right:${right.toFixed(2)}mm;` +
+        (length == null ? '' : `height:${length.toFixed(2)}mm;`);
+    }
+
     // One line of text with its baseline at `baselineCheck` (check mm).
     function pcLine(text, leftOv, widthOv, baselineCheck, pt, opts) {
       const emOv = pt * MM_PER_PT;
       const top = ovY(baselineCheck) - COURIER_ASCENT * emOv;
-      const align = (opts && opts.align) || 'left';
+      const align = (opts && opts.align === 'right') ? 'end' : 'start';
       const weight = (opts && opts.bold) ? 'bold' : 'normal';
-      return `<div class="pc-field" style="left:${leftOv.toFixed(2)}mm;top:${top.toFixed(2)}mm;` +
-        `width:${widthOv.toFixed(2)}mm;text-align:${align};font-size:${pt.toFixed(2)}pt;` +
+      return `<div class="pc-field" style="${pcPos(leftOv, top, widthOv)}` +
+        `text-align:${align};font-size:${pt.toFixed(2)}pt;` +
         `font-weight:${weight};">${escapeHtml(text)}</div>`;
     }
 
@@ -1225,7 +1234,7 @@
       const dW = COURIER_ADVANCE * dEm;
       digits.slice(0, 8).split('').forEach((d, i) => {
         const left = ovX(L.dateBoxX[i]) - dW / 2;
-        html += `<div class="pc-field" style="left:${left.toFixed(2)}mm;top:${dTop.toFixed(2)}mm;` +
+        html += `<div class="pc-field" style="${pcPos(left, dTop)}` +
           `font-size:${L.datePt}pt;font-weight:bold;">${d}</div>`;
       });
 
@@ -1244,13 +1253,14 @@
       return html;
     }
 
-    // One letter page per check; each page holds the rotated overlay.
-    // Pages are in reverse order: the first check of the series goes on the
-    // last page, which is the first one fed for multi-page jobs.
+    // One page per check. Pages are in reverse order: the first check of
+    // the series goes on the last page, which is the first one fed for
+    // multi-page jobs.
     function fillChecksBatch(checks) {
       const container = document.getElementById('printChecks');
+      const w = checkPaper().w;
       container.innerHTML = (checks || []).slice().reverse().map(c =>
-        `<div class="print-check-page"><div class="pc-overlay">${pcCheckFields(c)}</div></div>`
+        `<div class="print-check-page" style="width:${w}mm;"><div class="pc-overlay">${pcCheckFields(c)}</div></div>`
       ).join('');
     }
 
@@ -1939,6 +1949,7 @@
       document.getElementById('printReloadBtn').addEventListener('click', () =>
         loadPendingPrint().catch(err => showToast('printToast', err.message, 'error'))
       );
+      document.getElementById('checkPaperName').textContent = checkPaper().name;
       const seriesCb = document.getElementById('seriesMode');
       const wrap = document.getElementById('seriesInputWrap');
       seriesCb.addEventListener('change', () => {
