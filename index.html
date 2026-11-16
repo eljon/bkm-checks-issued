@@ -794,24 +794,6 @@
         font-family: "Courier New", Courier, monospace;
         color: #000;
       }
-      /* Check-size paper (3 x 8 in, @page matches): the page is the check
-         itself, turned 90° clockwise. Nothing is rotated as a box; each
-         field is written top-to-bottom with vertical text, so no layout box
-         is ever wider than the 3in page (which would make Chrome shrink). */
-      body.printing-checks.feed-check .print-check-page {
-        width: 3in;
-        height: 200mm;
-      }
-      body.printing-checks.feed-check .pc-overlay {
-        top: 0;
-        width: 3in;
-        height: 200mm;
-        transform: none;
-      }
-      body.printing-checks.feed-check .pc-field {
-        writing-mode: vertical-rl;
-        text-orientation: sideways;
-      }
 
       .busy-overlay, .save-queue { display: none !important; }
 
@@ -824,7 +806,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>BKM Checks Issued <span class="version">v17</span></h1>
+    <h1>BKM Checks Issued <span class="version">v18</span></h1>
     <div class="save-queue hidden" id="saveQueue" role="status" aria-live="polite"></div>
 
     <div class="tabs">
@@ -996,14 +978,7 @@
           </div>
         </div>
 
-        <div class="field">
-          <label>Paper size selected when printing <span class="opt">(saved on this computer)</span></label>
-          <div class="seg-toggle" id="feedToggle" style="margin-bottom:0;">
-            <button type="button" class="seg" data-mode="portrait">Letter</button>
-            <button type="button" class="seg" data-mode="check">3 × 8 in (check size)</button>
-          </div>
-          <button type="button" id="printRulerBtn" style="margin-top:8px;">Print 3 × 8 in alignment ruler</button>
-        </div>
+        <p style="margin:0 0 12px;color:var(--muted);font-size:13px;">Print on <strong>Letter</strong> with the check taped onto a Letter sheet: check's left edge flush with the sheet's top edge, centered (2¾ in from each side).</p>
 
         <label class="toggle-row" for="seriesMode">
           <span class="switch">
@@ -1167,8 +1142,7 @@
     }
 
     function printChecksBatch() {
-      printPage('printing-checks',
-        checkFeed === 'check' ? 'size: 3in 8in; margin: 0;' : 'size: letter; margin: 0;');
+      printPage('printing-checks', 'size: letter; margin: 0;');
     }
 
     function printReport() {
@@ -1190,55 +1164,23 @@
       wordsX: 23, wordsMaxX: 182.5, wordsBaseline: 32.3, wordsPt: 10, wordsMinPt: 6
     };
 
-    // Same targets for 3 x 8 in paper, in page mm, read off a BDO check
-    // against the v16 alignment ruler (Mac, "Cheque" paper, default
-    // margins/scale): date box centers from the M/D/Y labels, amount
-    // centered in its box (17.2-24.3), payee/words just above their lines
-    // (25.1 / ~32.6). CHECK_LAYOUT above is in the frame of the letter
-    // calibration and is not physical mm, so it can't be reused here.
-    const CHECK_LAYOUT_PAPER = {
-      dateBoxX: [151.8, 156.8, 163.8, 168.9, 176.4, 181.4, 186.4, 191.3],
-      dateBoxY: 12.7,
-      datePt: 10,
-      payeeX: 32.2, payeeMaxX: 136, payeeBaseline: 24.4, payeePt: 12,
-      amountX: 147.3, amountMaxX: 191.6, amountBaseline: 21.9, amountPt: 11,
-      wordsX: 24.8, wordsMaxX: 192.5, wordsBaseline: 32.0, wordsPt: 10, wordsMinPt: 6
-    };
-
     // Maps CSS overlay mm to where ink lands on the check:
     //   checkX = sx * overlayX + bx,  checkY = sy * overlayY + by
-    // Each OS shrinks and anchors the letter page differently.
-    // portrait (letter paper, check fed short edge first, overlay rotated):
+    // Each OS shrinks and anchors the letter page differently. Fitted with
+    // the check fed short edge first, centered, leading edge at the top of
+    // the page (a check taped flush and centered on a letter sheet is the
+    // same geometry):
     //   mac: 8 fields across two prints, ~2mm.
     //   windows: 8 date digits + amount + words from one v4 print.
-    // check (3 x 8 in paper, page = check): 1:1 by construction; not yet
-    //   confirmed by a print on either OS.
     const PRINT_CALS = {
-      mac: {
-        portrait: { sx: 0.923, bx: 12.65, sy: 0.913, by: 0.70 },
-        check: { sx: 1, bx: 0, sy: 1, by: 0 }
-      },
-      windows: {
-        portrait: { sx: 0.956, bx: -1.37, sy: 0.921, by: -0.12 },
-        check: { sx: 1, bx: 0, sy: 1, by: 0 }
-      }
+      mac: { sx: 0.923, bx: 12.65, sy: 0.913, by: 0.70 },
+      windows: { sx: 0.956, bx: -1.37, sy: 0.921, by: -0.12 }
     };
     const PRINT_OS = /win/i.test(
       (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || ''
     ) ? 'windows' : 'mac';
 
-    // Paper the check is printed on (letter, or 3 x 8 in check size);
-    // remembered per computer. Either way the check goes in left edge first.
-    let checkFeed = 'portrait';
-    try { if (localStorage.getItem('bkm_feed') === 'check') checkFeed = 'check'; } catch (_) {}
-
-    function setCheckFeed(mode) {
-      checkFeed = mode === 'check' ? 'check' : 'portrait';
-      try { localStorage.setItem('bkm_feed', checkFeed); } catch (_) {}
-      document.body.classList.toggle('feed-check', checkFeed === 'check');
-    }
-
-    function printCal() { return PRINT_CALS[PRINT_OS][checkFeed]; }
+    function printCal() { return PRINT_CALS[PRINT_OS]; }
 
     const MM_PER_PT = 0.35278;
     const COURIER_ADVANCE = 0.6;   // glyph width, em
@@ -1254,32 +1196,19 @@
       return Math.max(minPt || 1, Math.min(maxPt, fit));
     }
 
-    // Position of a field box given in overlay mm: `along` runs with the
-    // text (check x), `across` is the box's line-top edge (check y).
-    // On check-size paper the page is the check turned 90° clockwise and
-    // the text is vertical, so check x runs down the page and check y runs
-    // leftward from the page's right edge.
-    function pcPos(along, across, length) {
-      const len = length == null ? '' : length.toFixed(2) + 'mm;';
-      if (checkFeed === 'check') {
-        return `top:${along.toFixed(2)}mm;right:${across.toFixed(2)}mm;` + (len && 'height:' + len);
-      }
-      return `left:${along.toFixed(2)}mm;top:${across.toFixed(2)}mm;` + (len && 'width:' + len);
-    }
-
     // One line of text with its baseline at `baselineCheck` (check mm).
     function pcLine(text, leftOv, widthOv, baselineCheck, pt, opts) {
       const emOv = pt * MM_PER_PT;
       const top = ovY(baselineCheck) - COURIER_ASCENT * emOv;
-      const align = (opts && opts.align === 'right') ? 'end' : 'start';
+      const align = (opts && opts.align) || 'left';
       const weight = (opts && opts.bold) ? 'bold' : 'normal';
-      return `<div class="pc-field" style="${pcPos(leftOv, top, widthOv)}` +
-        `text-align:${align};font-size:${pt.toFixed(2)}pt;` +
+      return `<div class="pc-field" style="left:${leftOv.toFixed(2)}mm;top:${top.toFixed(2)}mm;` +
+        `width:${widthOv.toFixed(2)}mm;text-align:${align};font-size:${pt.toFixed(2)}pt;` +
         `font-weight:${weight};">${escapeHtml(text)}</div>`;
     }
 
     function pcCheckFields(c) {
-      const L = checkFeed === 'check' ? CHECK_LAYOUT_PAPER : CHECK_LAYOUT;
+      const L = CHECK_LAYOUT;
       const amt = Number(c.amount) || 0;
       const digits = formatCheckDate(c.checkDate || '').replace(/\D/g, '');
       const payee = String(c.supplier || '').toUpperCase();
@@ -1296,7 +1225,7 @@
       const dW = COURIER_ADVANCE * dEm;
       digits.slice(0, 8).split('').forEach((d, i) => {
         const left = ovX(L.dateBoxX[i]) - dW / 2;
-        html += `<div class="pc-field" style="${pcPos(left, dTop)}` +
+        html += `<div class="pc-field" style="left:${left.toFixed(2)}mm;top:${dTop.toFixed(2)}mm;` +
           `font-size:${L.datePt}pt;font-weight:bold;">${d}</div>`;
       });
 
@@ -1313,55 +1242,6 @@
         fitPt(words, wW, L.wordsPt, L.wordsMinPt), { bold: true });
 
       return html;
-    }
-
-    // Diagnostic 3 x 8 in page: mm rulers drawn in check coordinates with no
-    // calibration applied, so a print shows exactly where each page
-    // position lands on the paper (offset, scale, clipping, skew).
-    function rulerSvg() {
-      let g = '<rect x="0.3" y="0.3" width="199.4" height="75.6" fill="none" stroke="#000" stroke-width="0.3"/>';
-      const tick = (x1, y1, x2, y2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
-      const label = (x, y, t) => `<text x="${x}" y="${y}">${t}</text>`;
-      // Along the check (x): rulers with ticks pointing up, labels above.
-      const rows = [15, 45, 70];
-      rows.forEach(y => {
-        g += tick(0, y, 200, y);
-        for (let x = 0; x <= 200; x++) {
-          const len = x % 10 === 0 ? 4 : x % 5 === 0 ? 2.5 : 1.2;
-          g += tick(x, y, x, y - len);
-          if (x % 10 === 0 && x > 0 && x < 200) g += label(x, y - 5, x);
-        }
-      });
-      // Across the check (y): rulers near both ends and in the middle;
-      // labels on the inward side, skipped where they'd hit a row's labels.
-      [[3, 1], [105, 1], [197, -1]].forEach(([x, dir]) => {
-        g += tick(x, 0, x, 76);
-        for (let y = 0; y <= 76; y++) {
-          const len = y % 10 === 0 ? 4 : y % 5 === 0 ? 2.5 : 1.2;
-          g += tick(x, y, x + dir * len, y);
-          if (y % 10 === 0 && y > 0 && !rows.some(r => Math.abs(r - 5 - y) < 4 || Math.abs(r - y) < 3)) {
-            g += `<text x="${x + dir * 5}" y="${y + 1.1}" text-anchor="${dir > 0 ? 'start' : 'end'}">${y}</text>`;
-          }
-        }
-      });
-      // translate+rotate maps check (x, y) to page (76.2 - y, x), as in pcPos.
-      return '<svg xmlns="http://www.w3.org/2000/svg" width="76.2mm" height="200mm" viewBox="0 0 76.2 200" ' +
-        'style="position:absolute;top:0;left:0;">' +
-        '<g transform="translate(76.2,0) rotate(90)" stroke="#000" stroke-width="0.15" ' +
-        'font-family="Arial, Helvetica, sans-serif" font-size="3" text-anchor="middle">' +
-        g.replace(/<text /g, '<text stroke="none" fill="#000" ') +
-        '</g></svg>';
-    }
-
-    function printRuler() {
-      document.getElementById('printChecks').innerHTML =
-        `<div class="print-check-page"><div class="pc-overlay">${rulerSvg()}</div></div>`;
-      document.body.classList.add('feed-check');
-      try {
-        printPage('printing-checks', 'size: 3in 8in; margin: 0;');
-      } finally {
-        document.body.classList.toggle('feed-check', checkFeed === 'check');
-      }
     }
 
     // One letter page per check; each page holds the rotated overlay.
@@ -2059,10 +1939,6 @@
       document.getElementById('printReloadBtn').addEventListener('click', () =>
         loadPendingPrint().catch(err => showToast('printToast', err.message, 'error'))
       );
-      setCheckFeed(checkFeed);
-      document.querySelector('#feedToggle .seg[data-mode="' + checkFeed + '"]').classList.add('active');
-      setupSegToggle('feedToggle', setCheckFeed);
-      document.getElementById('printRulerBtn').addEventListener('click', printRuler);
       const seriesCb = document.getElementById('seriesMode');
       const wrap = document.getElementById('seriesInputWrap');
       seriesCb.addEventListener('change', () => {
