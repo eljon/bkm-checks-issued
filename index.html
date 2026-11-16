@@ -813,7 +813,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>BKM Checks Issued <span class="version">v23</span></h1>
+    <h1>BKM Checks Issued <span class="version">v24</span></h1>
     <div class="save-queue hidden" id="saveQueue" role="status" aria-live="polite"></div>
 
     <div class="tabs">
@@ -1220,13 +1220,15 @@
     // amount centered in its box (143.1-194.4 x 230.9-238.2), payee/words
     // just above their lines (238.0 / ~246.0). Left-to-right positions
     // match the single check's ruler measurements to ~0.5mm.
+    // Then adjusted on request after a Mac print: payee and words 1.5mm
+    // higher, date 1mm lower, amount digits 11pt -> 12pt.
     const CORP_LAYOUT = {
       dateBoxX: [152.1, 157.0, 164.3, 169.3, 176.6, 181.6, 186.8, 191.9],
-      dateBoxY: 225.7,
+      dateBoxY: 226.7,
       datePt: 10,
-      payeeX: 32.2, payeeMaxX: 136, payeeBaseline: 237.3, payeePt: 12,
-      amountX: 147.3, amountMaxX: 192.2, amountBaseline: 235.7, amountPt: 11,
-      wordsX: 24.8, wordsMaxX: 192.5, wordsBaseline: 245.3, wordsPt: 10, wordsMinPt: 6
+      payeeX: 32.2, payeeMaxX: 136, payeeBaseline: 235.8, payeePt: 12,
+      amountX: 147.3, amountMaxX: 192.2, amountBaseline: 235.7, amountPt: 12,
+      wordsX: 24.8, wordsMaxX: 192.5, wordsBaseline: 243.8, wordsPt: 10, wordsMinPt: 6
     };
     const CORP_W = 203.2;
 
